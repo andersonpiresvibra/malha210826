@@ -1,0 +1,6 @@
+{
+  "summary":  "Plano arquitetural e de experiência do usuário para a nova aba Mapa do Aeródromo (SBGR) utilizando Google Maps Platform com perímetro estritamente bloqueado e mascarado aos limites internos do aeroporto, mapa satélite limpo (sem linhas de tubulação confidenciais), camadas operacionais opcionais (Posições, Pátios P1-P7 e Sub-Pits 101-1 a 715-4) e rastreamento GPS em tempo real de viaturas (CTA/SRV) via dispositivos móveis com Supabase Realtime.",
+  "updatedAt":  "2026-10-31T14:32:07.949756305Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}
