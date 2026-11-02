@@ -1,6 +1,6 @@
 {
-  "summary":  "Plano arquitetural e de experiência do usuário para a nova aba Mapa do Aeródromo (SBGR) utilizando Google Maps Platform com perímetro estritamente bloqueado e mascarado aos limites internos do aeroporto, mapa satélite limpo (sem linhas de tubulação confidenciais), camadas operacionais opcionais (Posições, Pátios P1-P7 e Sub-Pits 101-1 a 715-4) e rastreamento GPS em tempo real de viaturas (CTA/SRV) via dispositivos móveis com Supabase Realtime.",
-  "updatedAt":  "2026-10-31T14:32:07.949756305Z",
+  "summary":  "Plano de implementação para rotação manual do mapa (botões de giro esquerda/direita, bússola Norte/Course-Up, arraste com botão direito/Shift e correção geométrica das bordas diagonais) e reforma completa do Tema Claro corporativo Vibra/BR Aviation com alto contraste e mapa diurno/noturno sincronizado.",
+  "updatedAt":  "2026-11-02T01:08:07.628683346Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

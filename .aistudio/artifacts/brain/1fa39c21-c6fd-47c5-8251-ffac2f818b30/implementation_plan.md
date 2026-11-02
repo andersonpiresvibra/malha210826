@@ -1,117 +1,53 @@
-# Mapa Tático do Aeródromo SBGR & Telemetria GPS de Viaturas
+# Plano de Implementação: Rotação Manual do Mapa & Reforma Completa do Tema Claro
 
-Implementação da aba **Mapa** na seção **Aeródromo** utilizando o **Google Maps Platform** com isolamento visual e geográfico restrito ao perímetro interno de Guarulhos (SBGR), substituindo a planta técnica confidencial poluída por um mapa de satélite limpo, interativo e georreferenciado para rastreamento de frotas (CTA/SRV) em tempo real via dispositivos móveis.
+## 1. Diagnóstico Técnico
 
-### User Review & Critical Decisions
+Com base na análise do código e na captura de tela enviada, identificamos as causas exatas dos problemas relatados:
 
-> [!IMPORTANT]
-> **Como resolvemos o problema do "Mapa Limpo" e Sigilo Industrial:**
-> Em vez de exibir o arquivo PDF/CAD original (que contém linhas de tubulação confidenciais, válvulas `CV/PB` e círculos amarelos fixos sobrepostos), utilizaremos a imagem de satélite oficial e limpa do **Google Maps Platform** combinada com uma **Máscara Poligonal de Perímetro (Geofence Mask)**. Tudo o que estiver fora do muro patrimonial de SBGR receberá um recorte escuro/neutro (exatamente como o recorte da sua planta), mantendo o interior do aeroporto 100% limpo e livre de tubulações.
-> Os **Pits de Abastecimento** (ex.: `207-1`, `207-2`) mapeados a partir da sua referência serão convertidos em dados digitais opcionais: o mapa inicia totalmente limpo e você pode ativar/desativar camadas (Posições, Sub-Pits ou Viaturas) com um clique.
-
-- **Decisão Confirmada 1 — Estrutura em Abas (`Posições` | `Mapa`)**: A barra superior da seção **Aeródromo** ganhará o seletor principal alternando entre a visão atual de **Posições** (Grade/Tabela) e a nova visão **Mapa** em tela cheia.
-- **Decisão Confirmada 2 — Limitação Estrita ao Sítio Aeroportuário (SBGR)**: Aplicação simultânea de bloqueio de câmera (`strictBounds: true` nas coordenadas exatas de SBGR), trava de zoom mínimo/máximo (`minZoom: 14.5`, `maxZoom: 20`) e polígono de máscara externa para impedir visualização ou navegação fora dos limites internos do aeroporto.
-- **Decisão Confirmada 3 — Rastreamento Mobile em Tempo Real + Modo Simulação**: Suporte nativo ao GPS de smartphones/tablets dos operadores (`navigator.geolocation.watchPosition`) sincronizado via **Supabase Realtime**, acompanhado de um simulador de deslocamento de frotas no pátio para testes imediatos em desktop.
-
----
-
-### 1. Overview & Core Concept
-
-- **O que entrega**: Um Centro de Controle Operacional (NOC) georreferenciado dentro da seção **Aeródromo**, permitindo visualizar os Pátios 1 a 7 de SBGR sem poluição visual, acompanhar a ocupação das posições em tempo real, consultar qual sub-pit (`-1`, `-2`, `-3`, `-4`) atende cada posição e rastrear a localização exata de cada viatura (Servidor SRV ou Caminhão Tanque CTA) pelo celular/tablet do operador.
-- **Público-Alvo / Persona**: Líderes de Turno (LTs), Controladores de Malha no NOC (visão gerencial de pátio) e Operadores de Abastecimento em pista (transmissão automática de GPS pelo navegador do dispositivo móvel).
-- **Valor Principal**: Elimina o uso de plantas estáticas confidenciais poluídas, garante conformidade de segurança operacional e reduz o tempo de resposta no acionamento da viatura mais próxima de cada aeronave.
+1. **Falta de Controles de Giro Manual e Corte Diagonal no Mapa (`InteractiveGoogleRouteMap.tsx`)**:
+   - Atualmente a rotação do mapa responde apenas ao azimute automático (*Course-Up*). Não há botões para girar manualmente para a esquerda/direita nem suporte a giro via arraste com o botão direito do mouse (ou `Shift + Arraste`).
+   - O palco rotacionado usa dimensões percentuais fixas (`w-[164%] h-[164%]`). Em monitores widescreen (16:9), `164%` da altura do container é menor do que a diagonal da tela, fazendo surgir triângulos vazios nos cantos superior esquerdo e inferior direito ao girar o mapa.
+2. **Quebra de Contraste no Tema Claro (`src/index.css`, `DashboardHeader.tsx`, `App.tsx`)**:
+   - No `src/index.css`, a regra `:root:not(.dark) [class*="h-16"][class*="border-b"]` captura acidentalmente o `<header>` principal (`DashboardHeader.tsx`) e força fundo cinza claro (`#e9eef5`), enquanto os textos do cabeçalho (`ANDERSON`, `21H43`, `DENS. 0.803`, `TEMP. 24.5°C`) e o botão `Google Drive` permanecem com texto branco (`text-white`), tornando-os ilegíveis.
+   - Faltava a diretiva `@custom-variant dark (&:where(.dark, .dark *));` no `src/index.css` (obrigatória no Tailwind v4 para que utilitários `dark:*` respeitem a classe `.dark` no `<html>`).
+   - No `src/App.tsx`, a seção `MAPA` (`<AerodromoMapView />`) não recebia a prop `isDarkMode={isDarkMode}`, mantendo o mapa e o subcabeçalho travados em `isDarkMode = true` mesmo quando o sistema estava no Tema Claro.
 
 ---
 
-### 2. User Experience & Visual Design
+## 2. Escopo das Alterações
 
-- **Fluxos Principais do Usuário**:
-  1. **Alternância Rápida Posições ↔ Mapa**: No cabeçalho do Aeródromo, o usuário alterna entre `POSIÇÕES` (visão de cards/tabela) e `MAPA` (visão geográfica interativa de SBGR). Os filtros de Pátio (`TODOS`, `P1` a `P7`, `PVIP`) e a barra de busca continuam funcionando em ambas as abas — clicar em `P2` no modo Mapa move suavemente a câmera para o Pátio 2.
-  2. **Controle de Camadas (Mapa Limpo por Padrão)**: Uma barra de ferramentas tática flutuante permite ligar/desligar individualmente:
-     - **Viaturas (GPS Live)**: Exibe os veículos SRV e CTA em movimento no pátio.
-     - **Posições de Aeronaves**: Exibe os marcadores das posições (`101` a `715`) com código de cores semântico do status atual do voo.
-     - **Sub-Pits de Hidrante (`-1 / -2`)**: Oculto por padrão para manter o mapa limpo; quando ativado (ou ao clicar em uma posição como a `207`), exibe os pontos de conexão (`207-1`, `207-2`, etc.) para auxiliar na escolha do pit ideal conforme a envergadura da aeronave.
-     - **Recorte de Perímetro (Máscara SBGR)**: Destaca apenas a área interna do aeroporto, ocultando os bairros vizinhos ao redor de Guarulhos.
-  3. **Transmissão GPS Mobile (Rastreador de Viatura)**: O operador acessando pelo celular/tablet seleciona o número da sua frota (ex.: `SRV-2104` ou `CTA-1408`) e ativa o botão **"Transmitir GPS da Viatura"**. O sistema valida se o dispositivo está dentro da cerca virtual (Geofence) de SBGR e transmite posição, velocidade e rumo em tempo real para todos os terminais conectados.
-  4. **Inspeção de Posição e Viatura**: Clicar em uma viatura ou posição no mapa abre um painel lateral/card tático exibindo operador, voo designado, prefixo da aeronave, sub-pits disponíveis na posição (ex.: `207-1`, `207-2`) e telemetria de deslocamento.
+### A. Rotação Manual do Mapa (Esquerda / Direita) & Correção Geométrica 360°
+- **Arquivo**: `src/components/live-tracking/InteractiveGoogleRouteMap.tsx`
+  - **Controles Visuais de Giro no Mapa**:
+    - Adicionar barra de controle flutuante compacta no canto superior direito do mapa contendo:
+      - **Girar à Esquerda (`-15°`)**: botão com ícone de rotação anti-horária (clique simples gira `-15°`, segurar ou clicar repetidamente gira continuamente).
+      - **Indicador de Proa / Bússola (`0° Norte` / `Course-Up`)**: exibe o ângulo atual em graus e permite alternar entre **Norte para Cima (`0°`)** e **Rota Automática (*Course-Up*)**.
+      - **Girar à Direita (`+15°`)**: botão com ícone de rotação horária (`+15°`).
+  - **Giro Livre com o Mouse**:
+    - Suportar arraste com o **botão direito do mouse** (ou `Shift + botão esquerdo`) diretamente sobre o mapa para girar suavemente para a esquerda ou direita em tempo real, bloqueando o menu de contexto nativo no palco do mapa.
+  - **Geometria sem Bordas Cortadas (Fim dos Triângulos Brancos)**:
+    - Substituir o `w-[164%] h-[164%]` por cálculo dinâmico da diagonal real do viewport (`Math.ceil(Math.hypot(width, height)) + 80px`) centralizado com `translate(-50%, -50%) rotate(...)` e atualização automática via `ResizeObserver` + `leafletMap.invalidateSize()`, garantindo cobertura total de ponta a ponta em qualquer ângulo de 0° a 360°.
 
-- **Identidade Visual & Tema (Dark Mode Enterprise NOC)**:
-  - *Direção Estética*: Interface tática de controle de solo aeroportuário (Ground Control NOC), superfície escura de alto contraste para turnos noturnos e zero poluição visual.
-  - *Paleta de Cores & Semântica*:
-    - Superfícies estruturais em `slate-950` (`#020617`) e `slate-900` (`#0f172a`) com bordas de `1px` em `slate-800`.
-    - **Esmeralda (`#10b981`)**: Viaturas em abastecimento ativo / GPS online dentro do perímetro.
-    - **Azul (`#3b82f6`)**: Viaturas designadas em deslocamento para a posição.
-    - **Âmbar (`#f59e0b`)**: Posições em fila/aproximação ou visualização de sub-pits de hidrante.
-    - **Vermelho (`#ef4444`)**: Alerta de violação de perímetro (Geofence) ou posição interditada (`OFF`).
-  - *Tipografia & Hierarquia*: Números de frotas, coordenadas, velocidades (`km/h`), horários de calço e códigos de posições/pits renderizados estritamente em fonte monoespaçada com algarismos tabulares (`font-mono tabular-nums`).
-
----
-
-### 3. Key Product Decisions & Trade-Offs
-
-- **Decisão 1: Google Maps Híbrido/Satélite + Máscara Poligonal Invertida vs. Imagem Estática do PDF**
-  - *Abordagem Escolhida*: Renderizar o Google Maps (`@vis.gl/react-google-maps`) em modo satélite limpo (`satellite` sem rótulos comerciais externos) com um polígono invertido cobrindo a área externa ao perímetro patrimonial de SBGR e `restriction: { latLngBounds, strictBounds: true }`.
-  - *Por quê*: Remove 100% das linhas de tubulação confidenciais e círculos amarelos fixos do PDF, mantém o aspecto visual isolado apenas ao formato interno do aeroporto e permite usar coordenadas GPS reais (`latitude`/`longitude`) dos celulares dos operadores sem distorções.
-  - *Alternativas Consideradas*: Usar o PDF recortado como imagem de fundo foi descartado porque ele possui as tubulações sigilosas gravadas na imagem e não possui projeção geográfica real compatível com o GPS dos celulares.
-
-- **Decisão 2: Catálogo Digital de Sub-Pits (`207-1`, `207-2`) Sob Demanda**
-  - *Abordagem Escolhida*: Extrair a relação de pits de abastecimento por posição (`101-1`..`715-4`) e disponibilizá-la como metadado interativo de cada posição e camada opcional desligada por padrão.
-  - *Por quê*: Preserva a inteligência operacional do documento (saber quais pits existem na posição `207`, `402`, `601`, etc. e permitir selecionar qual pit está em uso no abastecimento) sem poluir o mapa com centenas de círculos amarelos simultâneos.
-
-- **Decisão 3: Telemetria em Tempo Real via Supabase Realtime Broadcast + Geolocation API**
-  - *Abordagem Escolhida*: Utilizar o canal `sbgr-vehicle-telemetry` do Supabase Realtime combinado com a API `navigator.geolocation.watchPosition` do navegador mobile e um modo de simulação de pátio integrado.
-  - *Por quê*: Permite atualização sub-segundo da posição das viaturas na tela sem bloquear a UI (Zero UI-Blocking) e sem exigir instalação de aplicativo nativo nas frotas (funciona direto no Chrome/Safari do celular ou tablet corporativo).
+### B. Reforma Completa do Tema Claro Corporativo (Vibra / BR Aviation)
+- **Arquivo**: `src/index.css`
+  - Declarar `@custom-variant dark (&:where(.dark, .dark *));` logo após `@import "tailwindcss";`.
+  - Refatorar as regras de `:root:not(.dark)` para o padrão **Tema Claro Corporativo de Alto Contraste**:
+    - Superfícies limpas em branco (`#FFFFFF`) e cinza gelo (`#F4F7FA`) com bordas estruturais nítidas (`#CBD5E1`).
+    - Tipografia primária em ardósia escuro (`#0F172A`) e secundária em `#475569` para máxima legibilidade diurna.
+    - Destaques semânticos em **Verde Vibra (`#007A4D` / `#10B981`)** com texto branco puro em botões ativos.
+    - Remover seletores genéricos destrutivos (como `[class*="h-16"][class*="border-b"]` que quebrava o cabeçalho principal e `button[class*="bg-white"]` que deixava botões invisíveis).
+    - Estilizar controles do Leaflet (`.leaflet-bar`) tanto para o Tema Claro quanto para o Tema Escuro.
+- **Arquivo**: `src/components/DashboardHeader.tsx`
+  - Aplicar estilização explícita e de alto contraste para o Tema Claro Corporativo:
+    - Cabeçalho claro estruturado (`bg-white border-slate-200 text-slate-900`) com insígnia verde institucional Vibra (`bg-[#007a4d] text-white`), nome do Líder de Turno em `text-slate-900`, cargo em `text-[#007a4d]`, relógio e telemetria (`DENS.` / `TEMP.`) em `text-slate-900` de alto contraste, e botão `Google Drive` com borda e tipografia legíveis nos dois temas.
+- **Arquivos**: `src/App.tsx`, `src/components/AerodromoMapView.tsx`, `src/components/live-tracking/LiveTrackingModal.tsx`
+  - Passar `isDarkMode={isDarkMode}` para `<AerodromoMapView />`, `<Aerodromo />`, `<GridOps />`, `<FlightRadarView />` e demais views no `src/App.tsx`.
+  - Ajustar `AerodromoMapView.tsx` e `LiveTrackingModal.tsx` para que o subcabeçalho em linha única, o campo de busca, os botões de ação e o rodapé de telemetria tenham cores de alto contraste no Tema Claro e no Tema Escuro.
+  - Exibir o mapa no **estilo claro diurno original** quando no Tema Claro (sem o filtro `.vagou-map-dark`) e no **estilo escuro tático** quando no Tema Escuro.
 
 ---
 
-### 4. Technical Architecture & Data Strategy *(Technical Reference)*
-
-- **Diagrama de Arquitetura e Componentes**:
-
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                        SEÇÃO AERÓDROMO (SBGR NOC)                            │
-│  ┌────────────────────────────────────────────────────────────────────────┐  │
-│  │ Subheader Portal: [ABA: POSIÇÕES | ABA: MAPA] • [P1..P7] • [BUSCA]    │  │
-│  └──────────────────┬───────────────────────────────────┬─────────────────┘  │
-└─────────────────────┼───────────────────────────────────┼────────────────────┘
-                      │                                   │
-         ┌────────────▼────────────┐         ┌────────────▼────────────────────┐
-         │   Visão de Posições     │         │   Visão Mapa Tático SBGR        │
-         │   (Grade / Tabela)      │         │  (@vis.gl/react-google-maps)    │
-         └─────────────────────────┘         └────────────┬────────────────────┘
-                                                          │
-                 ┌────────────────────────────────────────┼────────────────────┐
-                 ▼                                        ▼                    ▼
-┌─────────────────────────────────┐      ┌────────────────────────┐  ┌─────────────────────────┐
-│ Camada de Contenção & Geofence  │      │ Camada de Posições &   │  │ Camada de Viaturas GPS  │
-│ • strictBounds (Limites SBGR)   │      │ Sub-Pits (P1 a P7)     │  │ (CTA / SRV Realtime)    │
-│ • Polígono de Máscara Externa   │      │ • Status do Voo Ativo  │  │ • Transmissor Mobile    │
-│ • Validador Point-in-Polygon    │      │ • Seleção de Pit (-1/2)│  │ • Simulador de Frotas   │
-└─────────────────────────────────┘      └───────────┬────────────┘  └────────────┬────────────┘
-                                                     │                            │
-                                                     └─────────────┬──────────────┘
-                                                                   ▼
-                                         ┌─────────────────────────────────────────────────────┐
-                                         │        Supabase Realtime & Persistence Layer        │
-                                         │ • Canal Broadcast: sbgr-vehicle-telemetry           │
-                                         │ • Sincronização de Voos, Posições e Status de Frota │
-                                         └─────────────────────────────────────────────────────┘
-```
-
-- **Modelo de Dados & Estado**:
-  - **Perímetro e Geofence SBGR (`SBGR_BOUNDS` & `SBGR_PERIMETER_POLYGON`)**: Coordenadas geográficas de contenção estrita do sítio aeroportuário de Guarulhos (`north: -23.4120`, `south: -23.4520`, `west: -46.5020`, `east: -46.4420`) e vértices do polígono perimetral interno (Pátios 1 a 7, Pistas `10L/28R` e `10R/28L`, e vias de serviço).
-  - **Mapeamento Geográfico de Pátios, Posições e Sub-Pits**: Coordenadas reais de cada pátio (`P1` a `P7` e `PVIP`), coordenadas das posições de estacionamento e lista de sub-pits de hidrante associados a cada posição (ex.: Posição `207` → `['207-1', '207-2']`, Posição `402` → `['402-1'..'402-6']`, conforme catálogo técnico de SBGR).
-  - **Telemetria de Viaturas (`VehicleTelemetry`)**:
-    - `vehicleId`: Identificador da frota (ex.: `SRV-2101`, `CTA-1405`).
-    - `vehicleType`: `'SRV' | 'CTA'`.
-    - `operatorName`: Nome de guerra do operador logado.
-    - `assignedFlightId` / `assignedPositionId` / `selectedPitId`: Vínculo com a operação atual e qual sub-pit está conectado (ex.: `207-1`).
-    - `lat`, `lng`, `heading`, `speedKmh`, `accuracy`: Dados brutos do GPS mobile.
-    - `insidePerimeter`: Booleano calculado pelo motor de Geofence indicando se o veículo está dentro da área operacional de SBGR.
-    - `source`: `'MOBILE_GPS' | 'SIMULATOR'`.
-
-- **Mapeamento de Interações e Estados**:
-  - **Troca de Aba (`Posições` ↔ `Mapa`)**: Mantém o filtro de Pátio (`P1`..`P7`) e o termo de busca sincronizados. Selecionar um pátio específico no cabeçalho reposiciona e ajusta o zoom da câmera do Google Maps diretamente sobre aquele pátio.
-  - **Controles de Camada do Mapa**: Botões de alternância rápida (`Viaturas`, `Posições`, `Sub-Pits`, `Máscara de Perímetro`, ` Modo Satélite Limpo / Híbrido`) atualizam a visibilidade instantaneamente sem recarregar o mapa.
-  - **Modo Rastreador Mobile (GPS Live)**: Ao ativar o compartilhamento de localização no celular, registra `navigator.geolocation.watchPosition({ enableHighAccuracy: true })`, verifica se a coordenada está dentro do polígono de SBGR, emite o pacote no canal Realtime do Supabase e exibe indicador de transmissão ativa; se o sinal GPS estiver fora de SBGR (ex.: operador testando fora do aeroporto), exibe aviso claro permitindo testar via modo Simulador no pátio.
+## 3. Verificação
+- Testar a rotação manual do mapa pelos botões (`Girar Esquerda`, `Bússola/Norte`, `Girar Direita`) e pelo arraste com botão direito do mouse, garantindo que o arraste com botão esquerdo continue movendo o mapa perfeitamente na direção do cursor e sem cantos brancos cortados.
+- Alternar entre Tema Claro e Tema Escuro validando a legibilidade completa do cabeçalho principal, menu lateral, subcabeçalho do mapa, tabelas operacionais e estilo diurno/noturno do mapa.
+- Executar `lint_applet` e `compile_applet` garantindo zero erros de compilação.

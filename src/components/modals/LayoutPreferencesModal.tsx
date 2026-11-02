@@ -8,6 +8,7 @@ export interface UserLayoutPreferences {
     GRID_OPS?: boolean;          // Malha
     SHIFT_OPERATORS?: boolean;   // Equipe / Escala
     AERODROMO?: boolean;         // Aeródromo
+    MAPA?: boolean;              // Mapa GIS do Aeródromo
     FLEET?: boolean;             // Frotas
     FLIGHT_RADAR?: boolean;      // Radar / Telemetria
     REPORTS?: boolean;           // Relatório
@@ -50,6 +51,7 @@ export const defaultPreferences: UserLayoutPreferences = {
     GRID_OPS: true,
     SHIFT_OPERATORS: true,
     AERODROMO: true,
+    MAPA: true,
     FLEET: true,
     FLIGHT_RADAR: true,
     REPORTS: true,

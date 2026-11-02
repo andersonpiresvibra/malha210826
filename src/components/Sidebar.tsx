@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { LayoutDashboard, Users, Earth, Database, FileBarChart, Network, Settings, ChevronRight, Clock, Plane, BusFront, Table, Navigation, Compass, CalendarDays, Building, Layers, HardHat, MapPin, ChevronDown, Brain } from 'lucide-react';
+import { LayoutDashboard, Users, Earth, Database, FileBarChart, Network, Settings, ChevronRight, Clock, Plane, BusFront, Table, Navigation, Compass, CalendarDays, Building, Layers, HardHat, MapPin, Map, ChevronDown, Brain } from 'lucide-react';
 import { ViewState } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -41,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
     { id: 'GRID_OPS' as ViewState, icon: Table, label: 'Malha' },
     { id: 'SHIFT_OPERATORS' as ViewState, icon: Users, label: 'Equipe' },
     { id: 'AERODROMO' as ViewState, icon: MapPin, label: 'Aeródromo' },
+    { id: 'MAPA' as ViewState, icon: Map, label: 'Mapa' },
     { id: 'FLEET' as ViewState, icon: BusFront, label: 'Frotas' },
     { id: 'FLIGHT_RADAR' as ViewState, icon: Compass, label: 'Radar' },
     { id: 'REPORTS' as ViewState, icon: FileBarChart, label: 'Relatório', adminOnly: true },
@@ -56,7 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
   const isManagementActive = activeView === 'OPERATIONAL_MESH' || activeView === 'OPERATORS_ADMIN' || activeView === 'FLEETS_ADMIN' || activeView === 'AIRCRAFTS_ADMIN' || activeView === 'AIRLINES_ADMIN' || activeView === 'AERODROMO_ADMIN';
   
   return (
-    <aside className="w-20 shrink-0 border-r flex flex-col items-center py-6 transition-all duration-300 relative z-[80] border-transparent shadow-[2px_0_8px_rgba(0,0,0,0.5)]">
+    <aside className={`ops-main-sidebar w-20 shrink-0 border-r flex flex-col items-center py-6 transition-all duration-300 relative z-[80] ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
       <div className="flex flex-col gap-6 w-full items-center flex-1">
         <nav className="flex flex-col gap-4 w-full px-2">
           {navItems.map((item) => {
@@ -78,13 +79,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
                   isActive 
                     ? isDarkMode 
                       ? 'bg-emerald-500 text-white shadow-lg' 
-                      : 'bg-white text-emerald-900 shadow-lg' 
-                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                      : 'bg-[#007a4d] text-white shadow-sm' 
+                    : isDarkMode
+                      ? 'text-white/70 hover:text-white hover:bg-white/10'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
                 <Icon size={22} strokeWidth={isActive ? 2.5 : 2} className="transition-transform group-hover:scale-110" />
                 <span className={`text-[8px] font-black uppercase tracking-tighter mt-1 whitespace-nowrap ${
-                  isActive ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'
+                  isActive ? 'opacity-100' : 'opacity-80 group-hover:opacity-100'
                 } transition-opacity`}>
                   {item.label}
                 </span>
@@ -95,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
       </div>
 
       <div className="w-full px-2 mt-auto relative" ref={menuRef}>
-        <div className={`w-full h-px mb-4 ${isDarkMode ? 'bg-slate-800' : 'bg-white/20'}`}></div>
+        <div className={`w-full h-px mb-4 ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`}></div>
         
         {isMenuOpen && (
           <div className={`absolute bottom-0 left-full ml-2 p-2 rounded-xl shadow-xl w-56 border z-[100] flex flex-col gap-1 max-h-[80vh] overflow-y-auto ${
@@ -293,13 +296,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isDa
             title="Gerenciamento"
             className={`sidebar-nav-btn flex flex-col items-center justify-center p-3 rounded-xl transition-all w-full group cursor-pointer ${
               isManagementActive
-                ? 'bg-white text-emerald-900 shadow-lg'
-                : 'text-white/70 hover:text-white hover:bg-white/10'
+                ? isDarkMode
+                  ? 'bg-emerald-500 text-white shadow-lg'
+                  : 'bg-[#007a4d] text-white shadow-sm'
+                : isDarkMode
+                  ? 'text-white/70 hover:text-white hover:bg-white/10'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             <Settings size={22} strokeWidth={isManagementActive ? 2.5 : 2} className={`transition-transform duration-300 ${isMenuOpen ? 'rotate-90' : 'group-hover:rotate-45'}`} />
             <span className={`text-[8px] font-black uppercase tracking-tighter mt-1 whitespace-nowrap ${
-              isManagementActive ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'
+              isManagementActive ? 'opacity-100' : 'opacity-80 group-hover:opacity-100'
             } transition-opacity`}>
               Gerenciar
             </span>

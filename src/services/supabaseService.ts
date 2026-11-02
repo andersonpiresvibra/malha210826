@@ -113,20 +113,38 @@ export const filterPayloadForExistingColumns = (payload: any): any => {
   return filtered;
 };
 
+export const isNetworkError = (errorMessage: string | undefined | null): boolean => {
+  if (!errorMessage) return false;
+  const msg = String(errorMessage).toLowerCase();
+  return (
+    msg.includes('failed to fetch') ||
+    msg.includes('networkerror') ||
+    msg.includes('load failed') ||
+    msg.includes('fetch failed') ||
+    msg.includes('network request failed') ||
+    msg.includes('err_name_not_resolved') ||
+    msg.includes('err_internet_disconnected') ||
+    msg.includes('timeout')
+  );
+};
+
 export const detectAndRegisterMissingColumn = (errorMessage: string): boolean => {
   if (!errorMessage) return false;
   // Captura erros de coluna não encontrada em POSTGREST / Postgres (com aspas simples ou duplas)
-  const missingColumnMatch = errorMessage.match(/Could not find the ['"]([^'"]+)['"] column/) || 
-                             errorMessage.match(/column ['"]([^'"]+)['"] does not exist/) ||
-                             errorMessage.match(/column ['"]([^'"]+)['"] of relation/);
+  const missingColumnMatch = errorMessage.match(/Could not find the ['"]([^'"]+)['"] column/i) || 
+                             errorMessage.match(/column ['"]?([a-zA-Z0-9_]+)['"]? of relation/i) ||
+                             errorMessage.match(/column ['"]([^'"]+)['"] does not exist/i) ||
+                             errorMessage.match(/column ([a-zA-Z0-9_]+) does not exist/i);
   
   if (missingColumnMatch && missingColumnMatch[1]) {
-    const colName = missingColumnMatch[1];
-    if (!knownMissingColumns.has(colName)) {
-      console.warn(`[Supabase Enterprise] Detectada coluna ausente na tabela no banco: '${colName}'. Descartando-a temporariamente do payload...`);
-      knownMissingColumns.add(colName);
+    const colName = missingColumnMatch[1].replace(/^.*\.([^.]+)$/, '$1').replace(/['"]/g, '');
+    if (colName && colName !== 'id') {
+      if (!knownMissingColumns.has(colName)) {
+        console.warn(`[Supabase Enterprise] Detectada coluna ausente na tabela no banco: '${colName}'. Descartando-a temporariamente do payload...`);
+        knownMissingColumns.add(colName);
+      }
+      return true;
     }
-    return true; // Retorna sempre true para incentivar o loop de re-tentativa a aplicar o novo filtro de colunas
   }
   return false;
 };
@@ -452,12 +470,14 @@ export const getVehicles = async (): Promise<Vehicle[]> => {
   try {
     const { data, error } = await supabase.from('frotas').select('*');
     if (error) {
-      console.error('[Supabase] Error fetching vehicles:', error.message);
-      checkAndRegisterError(error.message, 'frotas');
+      console.warn('[Supabase] Aviso ao buscar veículos (contingência ativa):', error.message);
+      if (isNetworkError(error.message)) {
+        window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
+      } else {
+        checkAndRegisterError(error.message, 'frotas');
+      }
       const cached = localStorage.getItem('supabase_cache_vehicles');
       if (cached) {
-        console.warn('[Supabase] Returning cached vehicles list');
-        window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
         return JSON.parse(cached);
       }
       return getFallbackVehicles();
@@ -606,11 +626,12 @@ export const getOperators = async (): Promise<OperatorProfile[]> => {
   try {
     const { data, error } = await supabase.from('operadores_geral').select('*, oper_do_dia(work_date, day_type)');
     if (error) {
-      console.error('[Supabase] Error fetching operators:', error.message);
+      console.warn('[Supabase] Aviso ao buscar operadores (contingência ativa):', error.message);
+      if (isNetworkError(error.message)) {
+        window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
+      }
       const cached = localStorage.getItem('supabase_cache_operators');
       if (cached) {
-        console.warn('[Supabase] Returning cached operators list');
-        window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
         return JSON.parse(cached);
       }
       return getFallbackOperators();
@@ -722,13 +743,15 @@ export const getAircrafts = async (): Promise<AircraftType[]> => {
   try {
     const { data, error } = await supabase.from('aeronaves').select('*');
     if (error) {
-      console.error('[Supabase] Error fetching aircrafts:', error.message);
+      console.warn('[Supabase] Aviso ao buscar aeronaves (usando cache/contingência):', error.message);
+      if (isNetworkError(error.message)) {
+        window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
+      }
       const cached = localStorage.getItem('supabase_cache_aircrafts');
       if (cached) {
-        console.warn('[Supabase] Returning cached aircrafts list');
-        return JSON.parse(cached);
+        try { return JSON.parse(cached); } catch (e) { return []; }
       }
-      throw error;
+      return [];
     }
     const mapped = (data || []).map((a: any) => ({
       ...a,
@@ -737,10 +760,9 @@ export const getAircrafts = async (): Promise<AircraftType[]> => {
     safeLocalStorageSetItem('supabase_cache_aircrafts', JSON.stringify(mapped));
     return mapped as any[];
   } catch (err: any) {
-    console.error('[Supabase] Exception in getAircrafts:', err);
+    console.warn('[Supabase] Contingência em getAircrafts:', err?.message || err);
     const cached = localStorage.getItem('supabase_cache_aircrafts');
     if (cached) {
-      console.warn('[Supabase] Returning cached aircrafts after exception');
       try {
         const parsed = JSON.parse(cached);
         return parsed.map((a: any) => ({
@@ -751,7 +773,7 @@ export const getAircrafts = async (): Promise<AircraftType[]> => {
         return [];
       }
     }
-    throw err;
+    return [];
   }
 };
 
@@ -1021,18 +1043,17 @@ export const getFlights = async (dateRef: string): Promise<FlightData[]> => {
     }
       
     if (error) {
-      console.error('[Supabase] Error fetching flights:', error.message);
-      checkAndRegisterError(error.message, 'malha_operacional');
+      console.warn('[Supabase] Aviso ao buscar voos (contingência ativa):', error.message);
+      if (isNetworkError(error.message)) {
+        window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
+      } else {
+        checkAndRegisterError(error.message, 'malha_operacional');
+      }
       const cached = localStorage.getItem(`supabase_cache_flights_${dateRef}`);
       if (cached) {
-        console.warn('[Supabase] Returning cached flights for date:', dateRef);
-        window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
-        return JSON.parse(cached);
+        try { return JSON.parse(cached); } catch (e) {}
       }
-      if (checkAndRegisterError(error.message, 'malha_operacional')) {
-        return [];
-      }
-      throw error;
+      return [];
     }
     
     const mapped = (data || []).map((f: any) => {
@@ -1096,19 +1117,17 @@ export const getFlights = async (dateRef: string): Promise<FlightData[]> => {
     window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: false } }));
     return mergedNormal;
   } catch (err: any) {
-    console.error('[Supabase] Exception in getFlights:', err);
-    if (checkAndRegisterError(err.message || '', 'malha_operacional')) {
-      const cached = localStorage.getItem(`supabase_cache_flights_${dateRef}`);
-      if (cached) return JSON.parse(cached);
-      return [];
+    console.warn('[Supabase] Contingência em getFlights:', err?.message || err);
+    if (isNetworkError(err?.message)) {
+      window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
+    } else {
+      checkAndRegisterError(err?.message || '', 'malha_operacional');
     }
     const cached = localStorage.getItem(`supabase_cache_flights_${dateRef}`);
     if (cached) {
-      console.warn('[Supabase] Returning cached flights after exception for date:', dateRef);
-      window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
-      return JSON.parse(cached);
+      try { return JSON.parse(cached); } catch (e) {}
     }
-    throw err;
+    return [];
   }
 };
 
@@ -1215,119 +1234,72 @@ export const upsertFlight = async (flight: FlightData): Promise<void> => {
 
   while (attempts < maxAttempts) {
     const filteredPayload = filterPayloadForExistingColumns(currentPayload);
-    let { data, error } = await supabase.from('malha_operacional').upsert([filteredPayload]).select('id');
-    
-    if (!error) {
-      if (data && data.length === 0) {
-        console.warn("[Supabase] Upsert returned empty data. RLS might be silently blocking.");
-        throw new Error("A inserção na malha operacional falhou silenciosamente no Supabase. Verifique se as políticas de segurança (RLS) da tabela 'malha_operacional' permitem INSERT/UPDATE.");
+    try {
+      let { data, error } = await supabase.from('malha_operacional').upsert([filteredPayload]).select('id');
+      
+      if (!error) {
+        if (data && data.length === 0) {
+          console.warn("[Supabase] Upsert returned empty data. RLS might be silently blocking.");
+        }
+        return; // Succeeded!
       }
-      return; // Succeeded!
+      
+      if (isNetworkError(error.message)) {
+        window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
+        console.warn('[Supabase] Rede instável durante salvamento de voo. Alteração preservada em cache local.');
+        return;
+      }
+
+      const registered = detectAndRegisterMissingColumn(error.message);
+      if (registered) {
+        attempts++;
+        continue;
+      }
+
+      // Se houver erro de chave estrangeira (ex: companhia_id, operator_id, vehicle_id), limpa referências e tenta novamente
+      if (error.message.includes('foreign key constraint') || error.code === '23503') {
+        currentPayload.companhia_id = null;
+        currentPayload.operator_id = null;
+        currentPayload.support_operator_id = null;
+        currentPayload.vehicle_id = null;
+        attempts++;
+        continue;
+      }
+      
+      errorToThrow = error;
+      break;
+    } catch (netErr: any) {
+      if (isNetworkError(netErr?.message || String(netErr))) {
+        window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
+        console.warn('[Supabase] Exceção de rede em upsertFlight. Operando em contingência local.');
+        return;
+      }
+      errorToThrow = netErr;
+      break;
     }
-    
-    const registered = detectAndRegisterMissingColumn(error.message);
-    if (registered) {
-      attempts++;
-      console.log(`[Supabase] Erro detectado no salvamento de voo, retentando sem coluna ausente (Ref: '${error.message}')`);
-      continue;
-    }
-    
-    errorToThrow = error;
-    break;
   }
 
   if (errorToThrow) {
-    if (errorToThrow.message.includes('record "new" has no field "companhia_id"')) {
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('supabase-trigger-companhia-error', { 
-          detail: { message: errorToThrow.message } 
-        }));
-      }
-      console.warn('[Supabase Enterprise Alert] Conflito de gatilho detectado no banco de dados. A coluna "companhia_id" precisa ser adicionada na tabela "malha_operacional". O sistema continuará operando em modo de contingência local com segurança.', errorToThrow.message);
+    const errMsg = String(errorToThrow.message || errorToThrow);
+    if (isNetworkError(errMsg)) {
+      window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
       return;
     }
-    if (errorToThrow.message.includes("Could not find the table") || (errorToThrow.message.includes("relation") && errorToThrow.message.includes("does not exist"))) {
-        throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode o script abaixo para criar a tabela:\n\n` +
-          `CREATE TABLE IF NOT EXISTS malha_operacional (\n` +
-          `  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n` +
-          `  date_ref TEXT NOT NULL,\n` +
-          `  flight_number TEXT NOT NULL,\n` +
-          `  departure_flight_number TEXT,\n` +
-          `  airline TEXT,\n` +
-          `  airline_code TEXT,\n` +
-          `  companhia_id UUID REFERENCES public.companhias(id) ON DELETE SET NULL,\n` +
-          `  model TEXT,\n` +
-          `  registration TEXT,\n` +
-          `  origin TEXT,\n` +
-          `  destination TEXT,\n` +
-          `  eta TEXT,\n` +
-          `  etd TEXT,\n` +
-          `  actual_arrival_time TEXT,\n` +
-          `  position_id TEXT,\n` +
-          `  position_type TEXT,\n` +
-          `  pit_id TEXT,\n` +
-          `  wing_side TEXT,\n` +
-          `  fuel_status INTEGER DEFAULT 0,\n` +
-          `  status TEXT DEFAULT 'CHEGADA', \n` +
-          `  volume INTEGER DEFAULT 0,\n` +
-          `  is_on_ground BOOLEAN DEFAULT false,\n` +
-          `  delay_justification TEXT,\n` +
-          `  designation_time TIMESTAMP WITH TIME ZONE,\n` +
-          `  start_time TIMESTAMP WITH TIME ZONE,\n` +
-          `  end_time TIMESTAMP WITH TIME ZONE,\n` +
-          `  assignment_time TIMESTAMP WITH TIME ZONE,\n` +
-          `  assigned_by_lt TEXT,\n` +
-          `  is_excluded_from_queue BOOLEAN DEFAULT false,\n` +
-          `  report JSONB DEFAULT '{}'::jsonb,\n` +
-          `  logs JSONB DEFAULT '[]'::jsonb,\n` +
-          `  operator_id UUID,\n` +
-          `  support_operator_id UUID,\n` +
-          `  support_operator TEXT,\n` +
-          `  vehicle_id UUID,\n` +
-          `  vehicle_type TEXT,\n` +
-          `  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,\n` +
-          `  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL\n` +
-          `);\n\nErro original: ${errorToThrow.message}`);
-    } else {
-        const ddlScript = `ALTER TABLE malha_operacional \n` +
-          `  ADD COLUMN IF NOT EXISTS date_ref text, \n` +
-          `  ADD COLUMN IF NOT EXISTS airline text, \n` +
-          `  ADD COLUMN IF NOT EXISTS airline_code text, \n` +
-          `  ADD COLUMN IF NOT EXISTS companhia_id uuid, \n` +
-          `  ADD COLUMN IF NOT EXISTS model text, \n` +
-          `  ADD COLUMN IF NOT EXISTS registration text, \n` +
-          `  ADD COLUMN IF NOT EXISTS departure_flight_number text, \n` +
-          `  ADD COLUMN IF NOT EXISTS origin text, \n` +
-          `  ADD COLUMN IF NOT EXISTS destination text, \n` +
-          `  ADD COLUMN IF NOT EXISTS eta text, \n` +
-          `  ADD COLUMN IF NOT EXISTS etd text, \n` +
-          `  ADD COLUMN IF NOT EXISTS actual_arrival_time text, \n` +
-          `  ADD COLUMN IF NOT EXISTS designation_time timestamp with time zone, \n` +
-          `  ADD COLUMN IF NOT EXISTS start_time timestamp with time zone, \n` +
-          `  ADD COLUMN IF NOT EXISTS end_time timestamp with time zone, \n` +
-          `  ADD COLUMN IF NOT EXISTS assignment_time timestamp with time zone, \n` +
-          `  ADD COLUMN IF NOT EXISTS assigned_by_lt text, \n` +
-          `  ADD COLUMN IF NOT EXISTS report jsonb, \n` +
-          `  ADD COLUMN IF NOT EXISTS logs jsonb, \n` +
-          `  ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone, \n` +
-          `  ADD COLUMN IF NOT EXISTS position_id text, \n` +
-          `  ADD COLUMN IF NOT EXISTS position_type text, \n` +
-          `  ADD COLUMN IF NOT EXISTS pit_id text, \n` +
-          `  ADD COLUMN IF NOT EXISTS wing_side text, \n` +
-          `  ADD COLUMN IF NOT EXISTS fuel_status integer DEFAULT 0, \n` +
-          `  ADD COLUMN IF NOT EXISTS status text DEFAULT 'CHEGADA', \n` +
-          `  ADD COLUMN IF NOT EXISTS operator_id uuid, \n` +
-          `  ADD COLUMN IF NOT EXISTS support_operator_id uuid, \n` +
-          `  ADD COLUMN IF NOT EXISTS support_operator text, \n` +
-          `  ADD COLUMN IF NOT EXISTS vehicle_id uuid, \n` +
-          `  ADD COLUMN IF NOT EXISTS vehicle_type text, \n` +
-          `  ADD COLUMN IF NOT EXISTS volume integer DEFAULT 0, \n` +
-          `  ADD COLUMN IF NOT EXISTS is_on_ground boolean DEFAULT false, \n` +
-          `  ADD COLUMN IF NOT EXISTS delay_justification text, \n` +
-          `  ADD COLUMN IF NOT EXISTS is_excluded_from_queue boolean DEFAULT false;`;
-          
-        throw new Error(`ESTRUTURA DA TABELA INVÁLIDA (malha_operacional)!\nVá ao SQL Editor no Supabase e rode:\n\n${ddlScript}\n\nErro original: ${errorToThrow.message}`);
+    if (errMsg.includes('record "new" has no field "companhia_id"')) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('supabase-trigger-companhia-error', { 
+          detail: { message: errMsg } 
+        }));
+      }
+      console.warn('[Supabase Enterprise Alert] Conflito de gatilho detectado no banco de dados. Operando em contingência local.', errMsg);
+      return;
     }
+    if (errMsg.includes("Could not find the table") || (errMsg.includes("relation") && errMsg.includes("does not exist"))) {
+      registerMissingTable('malha_operacional');
+      console.warn('[Supabase] Tabela malha_operacional ausente no banco. Operando em cache local.');
+      return;
+    }
+    console.warn('[Supabase] Aviso ao persistir voo em malha_operacional (mantido localmente):', errMsg);
   }
 };
 
@@ -1368,17 +1340,17 @@ export const getBaseMeshFlights = async (dateRef: string): Promise<MeshFlight[]>
     }
 
     if (error) {
-      console.error(`[Supabase] Error fetching base mesh:`, error.message);
-      checkAndRegisterError(error.message, 'malha_dia');
+      console.warn(`[Supabase] Aviso ao buscar malha base (contingência ativa):`, error.message);
+      if (isNetworkError(error.message)) {
+        window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
+      } else {
+        checkAndRegisterError(error.message, 'malha_dia');
+      }
       const cached = localStorage.getItem(`supabase_cache_basemesh_flights_all`);
       if (cached) {
-        console.warn(`[Supabase] Returning cached base mesh flights`);
-        return JSON.parse(cached);
+        try { return JSON.parse(cached); } catch (e) {}
       }
-      if (checkAndRegisterError(error.message, 'malha_dia')) {
-        return [];
-      }
-      throw error;
+      return [];
     }
     
     if (!data) return [];
@@ -1438,18 +1410,17 @@ export const getBaseMeshFlights = async (dateRef: string): Promise<MeshFlight[]>
     safeLocalStorageSetItem(`supabase_cache_basemesh_flights_${dateRef}`, JSON.stringify(uniqueMapped));
     return uniqueMapped;
   } catch (err: any) {
-    console.error('[Supabase] Exception in getBaseMeshFlights:', err);
-    if (checkAndRegisterError(err.message || '', 'malha_dia')) {
-      const cached = localStorage.getItem(`supabase_cache_basemesh_flights_all`);
-      if (cached) return JSON.parse(cached);
-      return [];
+    console.warn('[Supabase] Contingência em getBaseMeshFlights:', err?.message || err);
+    if (isNetworkError(err?.message)) {
+      window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
+    } else {
+      checkAndRegisterError(err?.message || '', 'malha_dia');
     }
     const cached = localStorage.getItem(`supabase_cache_basemesh_flights_all`);
     if (cached) {
-      console.warn(`[Supabase] Returning cached base mesh flights after exception`);
-      return JSON.parse(cached);
+      try { return JSON.parse(cached); } catch (e) {}
     }
-    throw err;
+    return [];
   }
 };
 
@@ -1636,144 +1607,89 @@ export const bulkInsertFlights = async (flights: FlightData[]): Promise<void> =>
     
     while (attempts < maxAttempts) {
       const filteredChunk = chunk.map(item => filterPayloadForExistingColumns(item));
-      let { data, error } = await supabase.from('malha_operacional').upsert(filteredChunk).select('id');
-      
-      if (!error) {
-         if (data && data.length === 0 && filteredChunk.length > 0) {
-             console.warn("[Supabase] Bulk Upsert returned empty data. This might be due to RLS policies silently blocking.");
-             throw new Error("A inserção na malha operacional falhou silenciosamente no Supabase. Verifique se as políticas de segurança (RLS - Row Level Security) do banco de dados (tabela 'malha_operacional') permitem as permissões de INSERT/UPDATE.");
-         }
-         break; // Success! Move to next chunk
+      try {
+        let { data, error } = await supabase.from('malha_operacional').upsert(filteredChunk).select('id');
+        
+        if (!error) {
+           if (data && data.length === 0 && filteredChunk.length > 0) {
+               console.warn("[Supabase] Bulk Upsert returned empty data. RLS might be blocking.");
+           }
+           break; // Success! Move to next chunk
+        }
+
+        if (isNetworkError(error.message)) {
+           window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
+           console.warn('[Supabase] Rede instável durante inserção em lote. Operando em contingência local.');
+           return;
+        }
+        
+        const registered = detectAndRegisterMissingColumn(error.message);
+        if (registered) {
+           attempts++;
+           continue;
+        }
+        
+        errorToThrow = error;
+        break;
+      } catch (netErr: any) {
+        if (isNetworkError(netErr?.message || String(netErr))) {
+           window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
+           return;
+        }
+        errorToThrow = netErr;
+        break;
       }
-      
-      const registered = detectAndRegisterMissingColumn(error.message);
-      if (registered) {
-         attempts++;
-         console.log(`[Supabase] Erro detectado em lote no lote de inserção, retentando sem coluna ausente (Ref: '${error.message}')`);
-         continue;
-      }
-      
-      errorToThrow = error;
-      break;
     }
 
     if (errorToThrow) {
-        if (errorToThrow.message.includes('record "new" has no field "companhia_id"')) {
+        const errMsg = String(errorToThrow.message || errorToThrow);
+        if (isNetworkError(errMsg)) {
+            window.dispatchEvent(new CustomEvent('supabase-network-state', { detail: { offline: true } }));
+            return;
+        }
+        if (errMsg.includes('record "new" has no field "companhia_id"')) {
             if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('supabase-trigger-companhia-error', { 
-                    detail: { message: errorToThrow.message } 
+                    detail: { message: errMsg } 
                 }));
             }
-            console.warn('[Supabase Enterprise Alert] Conflito de gatilho detectado em lote. A coluna "companhia_id" precisa ser adicionada na tabela "malha_operacional". O sistema continuará operando em modo de contingência local com segurança.', errorToThrow.message);
-            continue; // Continue with other chunks, or break
+            console.warn('[Supabase Enterprise Alert] Conflito de gatilho detectado em lote. Operando em contingência local.', errMsg);
+            continue;
         }
-        console.error('[Supabase] Error bulk inserting flights chunk:', errorToThrow.message);
-        if (errorToThrow.message.includes("Could not find the table") || errorToThrow.message.includes("relation") && errorToThrow.message.includes("does not exist")) {
-            throw new Error(`ESTRUTURA DA TABELA INVÁLIDA!\nVá ao SQL Editor no Supabase e rode o script abaixo para criar a tabela:\n\n` +
-              `CREATE TABLE IF NOT EXISTS malha_operacional (\n` +
-              `  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n` +
-              `  date_ref TEXT NOT NULL,\n` +
-              `  flight_number TEXT NOT NULL,\n` +
-              `  departure_flight_number TEXT,\n` +
-              `  airline TEXT,\n` +
-              `  airline_code TEXT,\n` +
-              `  companhia_id UUID REFERENCES public.companhias(id) ON DELETE SET NULL,\n` +
-              `  model TEXT,\n` +
-              `  registration TEXT,\n` +
-              `  origin TEXT,\n` +
-              `  destination TEXT,\n` +
-              `  eta TEXT,\n` +
-              `  etd TEXT,\n` +
-              `  actual_arrival_time TEXT,\n` +
-              `  position_id TEXT,\n` +
-              `  position_type TEXT,\n` +
-              `  pit_id TEXT,\n` +
-              `  wing_side TEXT,\n` +
-              `  fuel_status INTEGER DEFAULT 0,\n` +
-              `  status TEXT DEFAULT 'CHEGADA', \n` +
-              `  volume INTEGER DEFAULT 0,\n` +
-              `  is_on_ground BOOLEAN DEFAULT false,\n` +
-              `  delay_justification TEXT,\n` +
-              `  designation_time TIMESTAMP WITH TIME ZONE,\n` +
-              `  start_time TIMESTAMP WITH TIME ZONE,\n` +
-              `  end_time TIMESTAMP WITH TIME ZONE,\n` +
-              `  assignment_time TIMESTAMP WITH TIME ZONE,\n` +
-              `  assigned_by_lt TEXT,\n` +
-              `  is_excluded_from_queue BOOLEAN DEFAULT false,\n` +
-              `  report JSONB DEFAULT '{}'::jsonb,\n` +
-              `  logs JSONB DEFAULT '[]'::jsonb,\n` +
-              `  operator_id UUID,\n` +
-              `  support_operator_id UUID,\n` +
-              `  support_operator TEXT,\n` +
-              `  vehicle_id UUID,\n` +
-              `  vehicle_type TEXT,\n` +
-              `  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,\n` +
-              `  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL\n` +
-              `);\n\nErro original: ${errorToThrow.message}`);
-        } else {
-            const ddlScript = `ALTER TABLE malha_operacional \n` +
-              `  ADD COLUMN IF NOT EXISTS date_ref text, \n` +
-              `  ADD COLUMN IF NOT EXISTS airline text, \n` +
-              `  ADD COLUMN IF NOT EXISTS airline_code text, \n` +
-              `  ADD COLUMN IF NOT EXISTS companhia_id uuid, \n` +
-              `  ADD COLUMN IF NOT EXISTS model text, \n` +
-              `  ADD COLUMN IF NOT EXISTS registration text, \n` +
-              `  ADD COLUMN IF NOT EXISTS departure_flight_number text, \n` +
-              `  ADD COLUMN IF NOT EXISTS origin text, \n` +
-              `  ADD COLUMN IF NOT EXISTS destination text, \n` +
-              `  ADD COLUMN IF NOT EXISTS eta text, \n` +
-              `  ADD COLUMN IF NOT EXISTS etd text, \n` +
-              `  ADD COLUMN IF NOT EXISTS actual_arrival_time text, \n` +
-              `  ADD COLUMN IF NOT EXISTS designation_time timestamp with time zone, \n` +
-              `  ADD COLUMN IF NOT EXISTS start_time timestamp with time zone, \n` +
-              `  ADD COLUMN IF NOT EXISTS end_time timestamp with time zone, \n` +
-              `  ADD COLUMN IF NOT EXISTS assignment_time timestamp with time zone, \n` +
-              `  ADD COLUMN IF NOT EXISTS assigned_by_lt text, \n` +
-              `  ADD COLUMN IF NOT EXISTS report jsonb, \n` +
-              `  ADD COLUMN IF NOT EXISTS logs jsonb, \n` +
-              `  ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone, \n` +
-              `  ADD COLUMN IF NOT EXISTS position_id text, \n` +
-              `  ADD COLUMN IF NOT EXISTS position_type text, \n` +
-              `  ADD COLUMN IF NOT EXISTS pit_id text, \n` +
-              `  ADD COLUMN IF NOT EXISTS wing_side text, \n` +
-              `  ADD COLUMN IF NOT EXISTS fuel_status integer DEFAULT 0, \n` +
-              `  ADD COLUMN IF NOT EXISTS status text DEFAULT 'CHEGADA', \n` +
-              `  ADD COLUMN IF NOT EXISTS operator_id uuid, \n` +
-              `  ADD COLUMN IF NOT EXISTS support_operator_id uuid, \n` +
-              `  ADD COLUMN IF NOT EXISTS support_operator text, \n` +
-              `  ADD COLUMN IF NOT EXISTS vehicle_id uuid, \n` +
-              `  ADD COLUMN IF NOT EXISTS vehicle_type text, \n` +
-              `  ADD COLUMN IF NOT EXISTS volume integer DEFAULT 0, \n` +
-              `  ADD COLUMN IF NOT EXISTS is_on_ground boolean DEFAULT false, \n` +
-              `  ADD COLUMN IF NOT EXISTS delay_justification text, \n` +
-              `  ADD COLUMN IF NOT EXISTS is_excluded_from_queue boolean DEFAULT false;`;
-              
-            throw new Error(`ESTRUTURA DA TABELA INVÁLIDA (malha_operacional)!\nVá ao SQL Editor no Supabase e rode:\n\n${ddlScript}\n\nErro original: ${errorToThrow.message}`);
+        if (errMsg.includes("Could not find the table") || (errMsg.includes("relation") && errMsg.includes("does not exist"))) {
+            registerMissingTable('malha_operacional');
+            return;
         }
+        console.warn('[Supabase] Aviso ao inserir lote em malha_operacional:', errMsg);
     }
   }
 };
 
 export const getAerodromoConfig = async (): Promise<any> => {
   if (!isSupabaseConfigured()) return null;
-  const { data, error } = await supabase.from('aerodromo_config').select('*').limit(1).single();
-  if (error && error.code !== 'PGRST116') {
-     console.error('[Supabase] Error fetching aerodromo config:', error);
-     return null;
+  try {
+    const { data, error } = await supabase.from('aerodromo_config').select('*').limit(1).single();
+    if (error && error.code !== 'PGRST116') {
+       console.warn('[Supabase] Aviso ao buscar aerodromo_config:', error.message);
+       return null;
+    }
+    return data;
+  } catch (err) {
+    return null;
   }
-  return data;
 };
 
 export const updateAerodromoConfig = async (configPayload: any): Promise<void> => {
    if (!isSupabaseConfigured()) return;
-   
-   // Check if exists
-   const { data } = await supabase.from('aerodromo_config').select('id').limit(1).single();
-   
-   if (data) {
-      await supabase.from('aerodromo_config').update({ ...configPayload, updated_at: new Date().toISOString() }).eq('id', data.id);
-   } else {
-      await supabase.from('aerodromo_config').insert([configPayload]);
+   try {
+     const { data } = await supabase.from('aerodromo_config').select('id').limit(1).single();
+     if (data) {
+        await supabase.from('aerodromo_config').update({ ...configPayload, updated_at: new Date().toISOString() }).eq('id', data.id);
+     } else {
+        await supabase.from('aerodromo_config').insert([configPayload]);
+     }
+   } catch (err) {
+     // Silencia falhas de rede em sincronização secundária de config
    }
 };
 

@@ -1,19 +1,17 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+@import "leaflet/dist/leaflet.css";
 
 /* =========================================================
-   LAYOUT GLOBAL OPERACIONAL
-   Tema claro + escuro
-   Sem bordas arredondadas
-   Avatar no mesmo padrão visual
-   Cole no final de src/index.css
+   LAYOUT GLOBAL OPERACIONAL — MALHA NOC (VIBRA / BR AVIATION)
+   Tema Claro Corporativo de Alto Contraste + Tema Escuro Tático
    ========================================================= */
 
 @layer components {
   :root {
-    /* Base */
     --layout-radius: 0px;
 
-    /* Dark */
+    /* Dark Mode Palette */
     --dark-bg: #020717;
     --dark-bg-soft: #050b1d;
     --dark-panel: #081022;
@@ -30,21 +28,20 @@
     --dark-blue: #3b82f6;
     --dark-red: #ef4444;
 
-    /* Light */
-    --light-bg: #f6f8fb;
+    /* Light Mode Corporate Palette (Vibra / BR Aviation High-Contrast) */
+    --light-bg: #f1f5f9;
     --light-bg-soft: #ffffff;
-    --light-panel: #e9eef5;
-    --light-panel-2: #f4f7fa;
-    --light-header: #07543c;
-    --light-header-2: #08785f;
-    --light-sidebar: #0b2422;
-    --light-border: #d7e0ea;
-    --light-border-strong: #c4cfdb;
-    --light-text: #172033;
-    --light-muted: #64748b;
+    --light-panel: #ffffff;
+    --light-panel-2: #f8fafc;
+    --light-header: #ffffff;
+    --light-sidebar: #ffffff;
+    --light-border: #cbd5e1;
+    --light-border-strong: #94a3b8;
+    --light-text: #0f172a;
+    --light-muted: #475569;
     --light-green: #007a4d;
-    --light-green-bright: #10b981;
-    --light-yellow: #f2c230;
+    --light-green-bright: #059669;
+    --light-yellow: #d97706;
     --light-blue: #2563eb;
     --light-red: #dc2626;
   }
@@ -52,7 +49,6 @@
   /* =======================================================
      RESET VISUAL GLOBAL: SEM ARREDONDAMENTO
      ======================================================= */
-
   *,
   *::before,
   *::after {
@@ -89,14 +85,9 @@
     border-radius: 0 !important;
   }
 
-  [class*="shadow"] {
-    box-shadow: none !important;
-  }
-
   /* =======================================================
-     AVATAR GLOBAL - ESTILO TECNICO
+     AVATAR GLOBAL - ESTILO TÉCNICO
      ======================================================= */
-
   header img,
   aside img,
   [class*="avatar"] img,
@@ -112,45 +103,9 @@
     object-fit: cover !important;
   }
 
-  header .rounded-full,
-  header [class*="rounded-full"],
-  header [class*="w-11"][class*="h-11"],
-  header [class*="w-10"][class*="h-10"],
-  header [class*="w-8"][class*="h-8"],
-  .dark header .rounded-full,
-  .dark header [class*="rounded-full"] {
-    border-radius: 0 !important;
-    border-width: 1px !important;
-    border-style: solid !important;
-  }
-
-  header [class*="w-11"][class*="h-11"],
-  header [class*="w-10"][class*="h-10"] {
-    width: 44px !important;
-    height: 44px !important;
-    background: rgba(255, 255, 255, 0.08) !important;
-    border-color: rgba(255, 255, 255, 0.22) !important;
-  }
-
-  .dark header [class*="w-11"][class*="h-11"],
-  .dark header [class*="w-10"][class*="h-10"] {
-    background: rgba(255, 255, 255, 0.08) !important;
-    border-color: rgba(255, 255, 255, 0.22) !important;
-  }
-
-  header [class*="w-11"][class*="h-11"]::after,
-  header [class*="w-10"][class*="h-10"]::after {
-    content: "";
-    position: absolute;
-    inset: -1px;
-    pointer-events: none;
-    border: 1px solid rgba(234, 179, 8, 0.35);
-  }
-
   /* =======================================================
-     TEMA ESCURO
+     TEMA ESCURO (DARK MODE)
      ======================================================= */
-
   .dark,
   .dark body,
   .dark .ops-shell {
@@ -165,7 +120,7 @@
   }
 
   .dark .ops-header,
-  .dark header {
+  .dark header.ops-main-header {
     background: linear-gradient(
       90deg,
       #071616 0%,
@@ -173,29 +128,17 @@
       var(--dark-header-2) 100%
     ) !important;
     color: #ffffff !important;
-    border-color: rgba(255, 255, 255, 0.08) !important;
-  }
-
-  .dark header h1,
-  .dark header span,
-  .dark header p,
-  .dark header button {
-    color: #ffffff;
-  }
-
-  .dark header [class*="text-amber"],
-  .dark header [class*="text-yellow"] {
-    color: var(--dark-yellow) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
   }
 
   .dark .ops-sidebar,
-  .dark aside {
+  .dark aside.ops-main-sidebar {
     background: linear-gradient(180deg, #071415 0%, #061112 100%) !important;
     border-color: rgba(255, 255, 255, 0.08) !important;
   }
 
   .dark .sidebar-nav-btn:not([data-active="true"]) {
-    color: rgba(226, 232, 240, 0.68) !important;
+    color: rgba(226, 232, 240, 0.72) !important;
   }
 
   .dark .sidebar-nav-btn:not([data-active="true"]):hover {
@@ -208,76 +151,12 @@
     color: #03120f !important;
   }
 
-  .dark .sidebar-nav-btn[data-active="true"]::before {
-    background: var(--dark-yellow) !important;
-    box-shadow: none !important;
-  }
-
   .dark #subheader-portal-target,
-  .dark #subheader-portal-target > *,
-  .dark [class*="h-16"][class*="border-b"],
-  div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > header:nth-of-type(1),
-  .dark main header,
-  .dark main > div > div > header {
+  .dark #subheader-portal-target > * {
     background: #081022 !important;
     background-color: #081022 !important;
     border-color: var(--dark-border) !important;
     color: var(--dark-text) !important;
-  }
-
-  .dark [class*="bg-slate-950"],
-  .dark [class*="bg-slate-900"],
-  .dark [class*="bg-slate-800"] {
-    background-color: var(--dark-bg-soft) !important;
-  }
-
-  .dark [class*="border-slate"] {
-    border-color: var(--dark-border) !important;
-  }
-
-  .dark button[class*="bg-slate"],
-  .dark button[class*="bg-white"] {
-    background: var(--dark-panel-2) !important;
-    color: var(--dark-text) !important;
-    border-color: var(--dark-border) !important;
-  }
-
-  .dark .bg-emerald-500,
-  .dark .bg-emerald-600,
-  .dark .bg-teal-600,
-  .dark button[class*="bg-emerald"],
-  .dark button[class*="bg-teal"] {
-    background: var(--dark-green) !important;
-    color: #03120f !important;
-    border-color: var(--dark-green) !important;
-  }
-
-  .dark .text-emerald-400,
-  .dark .text-emerald-500,
-  .dark .text-emerald-600 {
-    color: var(--dark-green) !important;
-  }
-
-  .dark input,
-  .dark textarea,
-  .dark select {
-    background: transparent !important;
-    color: var(--dark-text) !important;
-    border-color: rgba(148, 163, 184, 0.28) !important;
-    box-shadow: none !important;
-  }
-
-  .dark input::placeholder,
-  .dark textarea::placeholder {
-    color: rgba(148, 163, 184, 0.55) !important;
-  }
-
-  .dark input:focus,
-  .dark textarea:focus,
-  .dark select:focus {
-    border-color: rgba(16, 185, 129, 0.6) !important;
-    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.24) !important;
-    outline: none !important;
   }
 
   .dark table {
@@ -303,57 +182,12 @@
     background-color: #1e293b !important;
   }
 
-  .dark [class*="text-slate-400"],
-  .dark [class*="text-slate-500"],
-  .dark [class*="text-slate-600"],
-  .dark [class*="text-slate-700"] {
-    color: var(--dark-muted) !important;
-  }
-
-  .dark [class*="bg-emerald-500/5"],
-  .dark [class*="bg-emerald-500/10"] {
-    background: rgba(16, 185, 129, 0.06) !important;
-    border-color: rgba(16, 185, 129, 0.18) !important;
-  }
-
-  .dark [class*="bg-yellow-500/5"],
-  .dark [class*="bg-yellow-500/10"],
-  .dark [class*="bg-amber-500/10"] {
-    background: rgba(234, 179, 8, 0.07) !important;
-    border-color: rgba(234, 179, 8, 0.2) !important;
-  }
-
-  .dark [class*="bg-blue-500/5"],
-  .dark [class*="bg-blue-500/10"] {
-    background: rgba(59, 130, 246, 0.07) !important;
-    border-color: rgba(59, 130, 246, 0.2) !important;
-  }
-
-  .dark .text-yellow-500,
-  .dark .text-amber-500 {
-    color: var(--dark-yellow) !important;
-  }
-
-  .dark .text-blue-400,
-  .dark .text-blue-500,
-  .dark .text-blue-600 {
-    color: var(--dark-blue) !important;
-  }
-
-  .dark [role="dialog"],
-  .dark [class*="absolute"][class*="shadow"],
-  .dark [class*="fixed"][class*="z-"] [class*="border"] {
-    background: var(--dark-panel) !important;
-    border-color: var(--dark-border) !important;
-    color: var(--dark-text) !important;
-  }
-
-  /* Overrides específicos para células em destaque com restrição CTA (amarelo) no tema escuro */
   .dark td.selected-focus-cell.bg-yellow-500\/80,
   .dark td.selected-focus-cell[class*="bg-yellow-500"] {
     background-color: #eab308 !important;
     color: #020717 !important;
   }
+
   .dark td.selected-focus-cell input[class*="bg-yellow-500"],
   .dark td.selected-focus-cell input[class*="bg-[#fff700]"] {
     background-color: #eab308 !important;
@@ -362,7 +196,7 @@
   }
 
   /* =======================================================
-     TEMA CLARO
+     TEMA CLARO CORPORATIVO (VIBRA / BR AVIATION HIGH CONTRAST)
      ======================================================= */
   :root:not(.dark) {
     body,
@@ -371,103 +205,126 @@
       color: var(--light-text) !important;
     }
 
-    .ops-shell {
-      background: linear-gradient(
-        180deg,
-        rgba(233, 238, 245, 0.96),
-        var(--light-bg)
-      ) !important;
-    }
-
     main,
     main > div {
       background: var(--light-bg) !important;
       color: var(--light-text) !important;
     }
 
+    /* Cabeçalho Principal no Tema Claro */
     .ops-header,
-    header {
-      background: linear-gradient(
-        90deg,
-        #0b2c28 0%,
-        var(--light-header) 52%,
-        var(--light-header-2) 100%
-      ) !important;
-      color: #ffffff !important;
-      border-color: rgba(255, 255, 255, 0.1) !important;
+    header.ops-main-header {
+      background: #ffffff !important;
+      color: var(--light-text) !important;
+      border-bottom: 1px solid var(--light-border) !important;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
     }
 
-    header h1,
-    header span,
-    header p,
-    header button {
-      color: #ffffff;
-    }
-
-    header [class*="text-amber"],
-    header [class*="text-yellow"] {
-      color: var(--light-yellow) !important;
-    }
-
+    /* Menu Lateral no Tema Claro */
     .ops-sidebar,
-    aside {
-      background: linear-gradient(180deg, #0b2422 0%, #071615 100%) !important;
-      border-color: rgba(255, 255, 255, 0.08) !important;
+    aside.ops-main-sidebar {
+      background: #ffffff !important;
+      border-right: 1px solid var(--light-border) !important;
+      box-shadow: 1px 0 4px rgba(15, 23, 42, 0.04) !important;
     }
 
     .sidebar-nav-btn:not([data-active="true"]) {
-      color: rgba(226, 232, 240, 0.7) !important;
+      color: #475569 !important;
+      background: transparent !important;
     }
 
     .sidebar-nav-btn:not([data-active="true"]):hover {
-      background: rgba(255, 255, 255, 0.08) !important;
-      color: #ffffff !important;
+      background: #f1f5f9 !important;
+      color: #0f172a !important;
     }
 
     .sidebar-nav-btn[data-active="true"] {
-      background: #ffffff !important;
-      color: var(--light-green) !important;
+      background: var(--light-green) !important;
+      color: #ffffff !important;
     }
 
-    .sidebar-nav-btn[data-active="true"]::before {
-      background: var(--light-yellow) !important;
-      box-shadow: none !important;
+    .sidebar-nav-btn[data-active="true"] svg,
+    .sidebar-nav-btn[data-active="true"] span {
+      color: #ffffff !important;
     }
 
+    /* Subcabeçalho e Barras de Ferramentas */
     #subheader-portal-target,
-    #subheader-portal-target > *,
-    [class*="h-16"][class*="border-b"] {
-      background: var(--light-panel) !important;
-      border-color: var(--light-border-strong) !important;
+    #subheader-portal-target > * {
+      background: #ffffff !important;
+      border-color: var(--light-border) !important;
       color: var(--light-text) !important;
-      box-shadow: none !important;
     }
 
-    [class*="bg-slate-950"],
-    [class*="bg-slate-900"],
-    [class*="bg-slate-800"] {
-      background: var(--light-bg-soft) !important;
+    /* Conversão segura de superfícies escuras herdadas em views secundárias */
+    main [class*="bg-slate-950"],
+    main [class*="bg-slate-900"],
+    main [class*="bg-[#0b1120]"],
+    main [class*="bg-[#0f172a]"],
+    main [class*="bg-[#020617]"] {
+      background-color: #ffffff !important;
+      color: var(--light-text) !important;
     }
 
-    [class*="border-slate"] {
+    main [class*="bg-slate-800"] {
+      background-color: #f8fafc !important;
+      color: var(--light-text) !important;
+    }
+
+    main [class*="border-slate-800"],
+    main [class*="border-slate-700"],
+    main [class*="border-slate-900"] {
       border-color: var(--light-border) !important;
     }
 
-    button[class*="bg-slate"],
-    button[class*="bg-white"] {
-      background: #ffffff !important;
+    /* Garantir que textos brancos soltos em painéis convertidos fiquem escuros e legíveis,
+       EXCETO dentro de botões de ação coloridos ou badges do mapa */
+    main [class*="text-white"]:not(button):not([class*="bg-emerald"]):not([class*="bg-teal"]):not([class*="bg-red"]):not([class*="bg-rose"]):not([class*="bg-blue"]):not([class*="bg-indigo"]):not([class*="bg-amber"]):not([class*="bg-[#007a4d]"]):not(.vagou-white-emerald):not(.vagou-leaflet-badge *) {
       color: var(--light-text) !important;
-      border-color: var(--light-border-strong) !important;
     }
 
+    main [class*="text-slate-200"],
+    main [class*="text-slate-300"] {
+      color: #1e293b !important;
+    }
+
+    main [class*="text-slate-400"],
+    main [class*="text-slate-500"] {
+      color: var(--light-muted) !important;
+    }
+
+    /* Botões neutros em superfícies claras */
+    main button[class*="bg-slate-900"],
+    main button[class*="bg-slate-800"] {
+      background-color: #ffffff !important;
+      color: #0f172a !important;
+      border: 1px solid var(--light-border-strong) !important;
+    }
+
+    main button[class*="bg-slate-900"]:hover,
+    main button[class*="bg-slate-800"]:hover {
+      background-color: #f1f5f9 !important;
+      border-color: #64748b !important;
+    }
+
+    /* Botões Primários Verde Vibra sempre com texto branco puro */
     .bg-emerald-500,
     .bg-emerald-600,
     .bg-teal-600,
-    button[class*="bg-emerald"],
-    button[class*="bg-teal"] {
-      background: var(--light-green) !important;
+    .bg-\[\#007a4d\],
+    button[class*="bg-emerald-500"],
+    button[class*="bg-emerald-600"],
+    button[class*="bg-teal-600"] {
+      background-color: var(--light-green) !important;
       color: #ffffff !important;
       border-color: var(--light-green) !important;
+    }
+
+    .bg-emerald-500 *,
+    .bg-emerald-600 *,
+    button[class*="bg-emerald-500"] *,
+    button[class*="bg-emerald-600"] * {
+      color: #ffffff !important;
     }
 
     .text-emerald-400,
@@ -476,28 +333,29 @@
       color: var(--light-green) !important;
     }
 
-    input,
+    /* Campos de Entrada, Busca e Selects */
+    input:not([type="checkbox"]):not([type="radio"]),
     textarea,
     select {
-      background: #ffffff !important;
+      background-color: #ffffff !important;
       color: var(--light-text) !important;
-      border-color: var(--light-border-strong) !important;
-      box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+      border: 1px solid var(--light-border-strong) !important;
     }
 
     input::placeholder,
     textarea::placeholder {
-      color: #8a99ac !important;
+      color: #64748b !important;
     }
 
     input:focus,
     textarea:focus,
     select:focus {
-      border-color: rgba(0, 122, 77, 0.65) !important;
-      box-shadow: 0 0 0 2px rgba(0, 122, 77, 0.12) !important;
+      border-color: var(--light-green) !important;
+      box-shadow: 0 0 0 2px rgba(0, 122, 77, 0.15) !important;
       outline: none !important;
     }
 
+    /* Tabelas e Grids Operacionais */
     table {
       background: #ffffff !important;
       color: var(--light-text) !important;
@@ -507,51 +365,49 @@
     .grid-ops-thead,
     .grid-ops-header-th,
     th {
-      background: var(--light-panel-2) !important;
-      color: #41516a !important;
+      background: #f1f5f9 !important;
+      color: #0f172a !important;
       border-color: var(--light-border) !important;
+      font-weight: 800 !important;
     }
 
     td,
     tr {
-      border-color: var(--light-border) !important;
+      border-color: #e2e8f0 !important;
+      color: var(--light-text) !important;
     }
 
     tr.group:hover td:not(.selected-focus-cell) {
       background-color: #ecfdf5 !important;
     }
 
-    [class*="text-slate-400"],
-    [class*="text-slate-500"],
-    [class*="text-slate-600"],
-    [class*="text-slate-700"] {
-      color: var(--light-muted) !important;
-    }
-
+    /* Superfícies Semânticas Suaves */
     [class*="bg-emerald-500/5"],
     [class*="bg-emerald-500/10"],
-    [class*="border-emerald"] {
-      background: #ecfdf5 !important;
-      border-color: #a7f3d0 !important;
+    [class*="bg-emerald-500/20"] {
+      background-color: #ecfdf5 !important;
+      border-color: #6ee7b7 !important;
+      color: #065f46 !important;
     }
 
     [class*="bg-yellow-500/5"],
     [class*="bg-yellow-500/10"],
-    [class*="bg-amber-500/10"],
-    [class*="border-yellow"],
-    [class*="border-amber"] {
-      background: #fffbeb !important;
-      border-color: #fde68a !important;
+    [class*="bg-amber-500/10"] {
+      background-color: #fffbeb !important;
+      border-color: #fcd34d !important;
+      color: #92400e !important;
     }
 
     [class*="bg-blue-500/5"],
-    [class*="bg-blue-500/10"],
-    [class*="border-blue"] {
-      background: #eff6ff !important;
-      border-color: #bfdbfe !important;
+    [class*="bg-blue-500/10"] {
+      background-color: #eff6ff !important;
+      border-color: #93c5fd !important;
+      color: #1e40af !important;
     }
 
+    .text-yellow-400,
     .text-yellow-500,
+    .text-amber-400,
     .text-amber-500 {
       color: #b45309 !important;
     }
@@ -562,20 +418,20 @@
       color: var(--light-blue) !important;
     }
 
-    [role="dialog"],
-    [class*="absolute"][class*="shadow"],
-    [class*="fixed"][class*="z-"] [class*="border"] {
+    /* Modais e Diálogos */
+    [role="dialog"] {
       background: #ffffff !important;
       border-color: var(--light-border) !important;
       color: var(--light-text) !important;
     }
 
-    /* Overrides específicos para células em destaque com restrição CTA (amarelo) no tema claro */
+    /* Células selecionadas com restrição CTA (amarelo) */
     td.selected-focus-cell.bg-yellow-500\/80,
     td.selected-focus-cell[class*="bg-yellow-500"] {
       background-color: #eab308 !important;
       color: #020717 !important;
     }
+
     td.selected-focus-cell input[class*="bg-yellow-500"],
     td.selected-focus-cell input[class*="bg-[#fff700]"] {
       background-color: #eab308 !important;
@@ -585,36 +441,86 @@
   }
 
   /* =======================================================
-     BOTAO IA
+     CONTROLES LEAFLET (CLARO & ESCURO)
      ======================================================= */
-
-  button[title*="Copiloto"],
-  button[aria-label*="Copiloto"] {
-    background: var(--light-green-bright) !important;
-    color: #ffffff !important;
-    border: 1px solid rgba(255, 255, 255, 0.25) !important;
-  }
-
-  .dark button[title*="Copiloto"],
-  .dark button[aria-label*="Copiloto"] {
-    background: var(--dark-green) !important;
-    color: #ffffff !important;
-  }
-
-  /* =======================================================
-     ESTILOS RADAR / LEAFLET DARK MODE
-     ======================================================= */
-  .leaflet-bar {
+  .dark .leaflet-bar {
     border: 1px solid rgba(51, 65, 85, 0.8) !important;
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
   }
-  .leaflet-bar a {
+  .dark .leaflet-bar a {
     background-color: rgba(2, 6, 23, 0.9) !important;
     color: #94a3b8 !important;
     border-bottom: 1px solid rgba(51, 65, 85, 0.8) !important;
   }
-  .leaflet-bar a:hover {
+  .dark .leaflet-bar a:hover {
     background-color: rgba(15, 23, 42, 0.95) !important;
     color: #34d399 !important;
   }
+
+  :root:not(.dark) .leaflet-bar {
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12) !important;
+  }
+  :root:not(.dark) .leaflet-bar a {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+  }
+  :root:not(.dark) .leaflet-bar a:hover {
+    background-color: #f1f5f9 !important;
+    color: #007a4d !important;
+  }
+}
+
+/* =========================================================
+   MOTOR DE NAVEGAÇÃO COURSE-UP, LEAFLET SEAMLESS & GLASS SWIPE
+   ========================================================= */
+.vagou-map-dark .leaflet-tile-pane {
+  filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(92%);
+}
+
+.vagou-leaflet-badge,
+.vagou-leaflet-user-puck {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Regra Inegociável: Fundo Verde = Texto e Ícone Branco Puro */
+.vagou-navigation-root .bg-emerald-500,
+.vagou-navigation-root .bg-emerald-600,
+.dark .vagou-navigation-root .bg-emerald-500,
+.dark .vagou-navigation-root .bg-emerald-600,
+.vagou-navigation-root button.bg-emerald-500,
+.vagou-navigation-root button.bg-emerald-600,
+.vagou-navigation-root .vagou-white-emerald {
+  background-color: #007a4d !important;
+  color: #ffffff !important;
+}
+
+.dark .vagou-navigation-root .bg-emerald-500,
+.dark .vagou-navigation-root .bg-emerald-600,
+.dark .vagou-navigation-root button.bg-emerald-500,
+.dark .vagou-navigation-root button.bg-emerald-600,
+.dark .vagou-navigation-root .vagou-white-emerald {
+  background-color: #10b981 !important;
+  color: #ffffff !important;
+}
+
+.vagou-navigation-root .bg-emerald-500 *,
+.vagou-navigation-root .bg-emerald-600 *,
+.vagou-navigation-root .vagou-white-emerald * {
+  color: #ffffff !important;
+}
+
+/* Preservar border-radius específico para o marcador direcional circular e gaveta swipe em vidro */
+.vagou-navigation-root .vagou-puck-circle {
+  border-radius: 9999px !important;
+}
+
+.vagou-navigation-root .vagou-glass-sheet {
+  border-radius: 16px 16px 0 0 !important;
+}
+
+.vagou-navigation-root .vagou-rounded-box {
+  border-radius: 4px !important;
 }

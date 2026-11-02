@@ -1,13 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  Search, Power, BusFront, LayoutGrid, AlertCircle, Info, Plus, Trash2, MoreVertical, Check, X, Settings, ChevronDown
+  Search, Power, BusFront, LayoutGrid, AlertCircle, Info, Plus, Trash2, MoreVertical, Check, X, Settings, ChevronDown, Map as MapIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { FlightData } from '../types';
+import { FlightData, OperatorProfile, Vehicle } from '../types';
 
-import { POSITIONS_BY_PATIO, PATIO_LABELS, PositionMetadata } from '../constants/aerodromoConfig';
+import { POSITIONS_BY_PATIO, PATIO_LABELS, PositionMetadata, getHydrantPitsForPosition } from '../constants/aerodromoConfig';
+import { AerodromoMapView } from './AerodromoMapView';
 
 interface AerodromoAdminProps {
   disabledPositions: Set<string>;
@@ -17,6 +18,8 @@ interface AerodromoAdminProps {
   positionRestrictions: Record<string, 'HYBRID' | 'CTA' | 'SRV'>;
   setPositionRestrictions: React.Dispatch<React.SetStateAction<Record<string, 'HYBRID' | 'CTA' | 'SRV'>>>;
   flights: FlightData[];
+  operators?: OperatorProfile[];
+  vehicles?: Vehicle[];
   patioPositions: Record<string, string[]>;
   setPatioPositions: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
   onClearAllAssignments?: () => void;
@@ -30,12 +33,15 @@ export const AerodromoAdmin: React.FC<AerodromoAdminProps> = ({
   positionRestrictions,
   setPositionRestrictions,
   flights,
+  operators = [],
+  vehicles = [],
   patioPositions,
   setPatioPositions,
   onClearAllAssignments
 }) => {
   const { isDarkMode } = useTheme();
   const { user } = useAuth();
+  const [activeAdminTab, setActiveAdminTab] = useState<'POSICOES' | 'MAPA'>('POSICOES');
   const [activePatioId, setActivePatioId] = useState('2');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'HYBRID' | 'SRV' | 'CTA' | 'REMOTA' | 'INACTIVE'>('ALL');
@@ -234,11 +240,36 @@ export const AerodromoAdmin: React.FC<AerodromoAdminProps> = ({
       <div className={`px-6 h-16 shrink-0 flex items-center justify-between border-b ${isDarkMode ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'} z-20`}>
         <div className="flex items-center gap-4">
           <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-indigo-500/10 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
-             <LayoutGrid size={20} />
+             {activeAdminTab === 'MAPA' ? <MapIcon size={20} /> : <LayoutGrid size={20} />}
           </div>
           <div>
-            <h2 className="text-sm font-black tracking-tighter uppercase leading-none">Gerenciar Posições</h2>
+            <h2 className="text-sm font-black tracking-tighter uppercase leading-none">
+              {activeAdminTab === 'MAPA' ? 'Mapa do Aeródromo' : 'Gerenciar Posições'}
+            </h2>
             <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Ground Layout Control</span>
+          </div>
+
+          <div className={`flex items-center p-0.5 rounded-lg border h-8 gap-0.5 ml-2 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
+            <button
+              onClick={() => setActiveAdminTab('POSICOES')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] h-full font-black uppercase tracking-widest transition-all ${
+                activeAdminTab === 'POSICOES'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <LayoutGrid size={12} /> POSIÇÕES
+            </button>
+            <button
+              onClick={() => setActiveAdminTab('MAPA')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] h-full font-black uppercase tracking-widest transition-all ${
+                activeAdminTab === 'MAPA'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <MapIcon size={12} /> MAPA
+            </button>
           </div>
         </div>
 
@@ -296,7 +327,7 @@ export const AerodromoAdmin: React.FC<AerodromoAdminProps> = ({
             </div>
             <input 
               type="text" 
-              placeholder="PESQUISE..." 
+              placeholder="PESQUISE POS / PIT..." 
               className={`border rounded text-[10px] uppercase w-56 pl-8 pr-3 h-7 tracking-widest outline-none transition-colors font-bold ${isDarkMode 
                 ? 'bg-transparent hover:bg-white/5 border-white/20 focus:border-white/40 text-white placeholder:text-white/40' 
                 : 'bg-white border-slate-200 text-slate-800 placeholder:text-slate-500 focus:ring-2 focus:ring-[#3CA317]/50 focus:border-[#3CA317]'
@@ -385,99 +416,126 @@ export const AerodromoAdmin: React.FC<AerodromoAdminProps> = ({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3">
-          {displayedPositions.map(posId => {
-            const isDisabled = disabledPositions.has(posId);
-            const restriction = positionRestrictions[posId] || 'HYBRID';
-            const hasFlight = activeFlightsByPos.has(posId);
-            const metadata = positionsMetadata[posId];
-            const isRemota = metadata?.type === 'REMOTA';
-            
-            const getRestrictionColor = () => {
-              if (isDisabled) return isDarkMode ? 'border-red-500/35 bg-slate-900/90 shadow-lg' : 'border-red-100 bg-red-50/50';
-              if (restriction === 'CTA') return isDarkMode ? 'border-yellow-500/35 bg-slate-900/90 shadow-lg' : 'border-yellow-100 bg-yellow-50/50';
-              if (restriction === 'SRV') return isDarkMode ? 'border-indigo-500/35 bg-slate-900/90 shadow-lg' : 'border-indigo-100 bg-indigo-50/50';
-              return isDarkMode ? 'border-emerald-500/35 bg-slate-900/90 shadow-lg' : 'border-emerald-100 bg-emerald-50/50';
-            };
-
-            const getRestrictionLabel = () => {
-                if (isRemota) return 'CTA';
-                if (restriction === 'HYBRID') return 'Híbrido';
-                return restriction;
-            };
-
-            return (
-              <div 
-                key={posId} 
-                className={`relative flex flex-col border-2 rounded transition-all h-32 ${getRestrictionColor()} ${hasFlight ? 'opacity-50 grayscale' : ''}`}
-              >
-                  <div className="p-2 border-b border-inherit flex justify-between items-center">
-                    <div className="flex items-center gap-1.5">
-                       <span className={`text-sm font-black font-mono ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{posId}</span>
-                       <button 
-                         onClick={() => toggleType(posId)}
-                         disabled={hasFlight}
-                         className={`text-[7px] font-black px-1.5 py-0.5 rounded transition-all hover:scale-110 active:scale-95 ${!isRemota ? 'bg-emerald-500 text-white' : 'bg-slate-500 text-white'}`}
-                       >
-                          {metadata?.type}
-                       </button>
-                    </div>
-                    {hasFlight ? (
-                      <AlertCircle size={10} className="text-amber-500" title="Ocupado" />
-                    ) : (
-                      <button 
-                        onClick={() => handleDeletePosition(posId)}
-                        className={`p-1 rounded-lg transition-colors ${isDarkMode ? 'text-slate-600 hover:text-red-500 hover:bg-red-500/10' : 'text-slate-300 hover:text-red-600 hover:bg-red-50'}`}
-                        title="Excluir posição"
-                      >
-                         <Trash2 size={12} />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex-1 flex flex-col justify-center gap-1 px-2">
-                    <button 
-                      onClick={() => toggleDisabled(posId)}
-                      className={`flex items-center justify-between w-full p-2 rounded-lg transition-all duration-200 ${isDisabled ? 'text-red-500 bg-red-500/20' : 'text-slate-500 hover:bg-slate-800 hover:text-slate-200'}`}
-                    >
-                        <Power size={14} strokeWidth={2.5} />
-                        <span className="text-[8px] font-black uppercase tracking-widest">{isDisabled ? 'OFF' : 'ATIVO'}</span>
-                    </button>
-
-                    <button 
-                      onClick={() => cycleRestriction(posId)}
-                      disabled={hasFlight || isRemota}
-                      className={`flex items-center justify-between w-full p-1 rounded transition-colors ${restriction !== 'HYBRID' ? 'text-yellow-500 bg-yellow-500/10' : 'text-slate-500 hover:bg-slate-800 hover:text-slate-200'} ${isRemota ? 'cursor-default opacity-50' : ''}`}
-                    >
-                        <BusFront size={12} strokeWidth={2.5} className={(restriction === 'SRV') ? 'text-indigo-400' : ''} />
-                        <span className={`text-[8px] font-black uppercase text-right ${(restriction === 'SRV') ? 'text-indigo-400' : ''}`}>{getRestrictionLabel()}</span>
-                    </button>
-                  </div>
-
-                  {/* Quick Indicator */}
-                  {!isDisabled && restriction === 'HYBRID' && (
-                    <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-emerald-500 border border-white dark:border-slate-900"></div>
-                  )}
-                  {!isDisabled && restriction === 'CTA' && (
-                    <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-yellow-500 border border-white dark:border-slate-900"></div>
-                  )}
-                  {!isDisabled && restriction === 'SRV' && (
-                    <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-indigo-500 border border-white dark:border-slate-900"></div>
-                  )}
-              </div>
-            );
-          })}
+      {activeAdminTab === 'MAPA' ? (
+        <div className="flex-1 overflow-hidden">
+          <AerodromoMapView
+            isDarkMode={isDarkMode}
+            activePatioId={activePatioId}
+            onSelectPatio={setActivePatioId}
+            searchTerm={searchTerm}
+            flights={flights}
+            operators={operators}
+            vehicles={vehicles}
+            disabledPositions={disabledPositions}
+            positionsMetadata={positionsMetadata}
+            positionRestrictions={positionRestrictions}
+          />
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="flex-1 overflow-auto p-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3">
+              {displayedPositions.map(posId => {
+                const isDisabled = disabledPositions.has(posId);
+                const restriction = positionRestrictions[posId] || 'HYBRID';
+                const hasFlight = activeFlightsByPos.has(posId);
+                const metadata = positionsMetadata[posId];
+                const isRemota = metadata?.type === 'REMOTA';
+                const subPits = getHydrantPitsForPosition(posId);
+                
+                const getRestrictionColor = () => {
+                  if (isDisabled) return isDarkMode ? 'border-red-500/35 bg-slate-900/90 shadow-lg' : 'border-red-100 bg-red-50/50';
+                  if (restriction === 'CTA') return isDarkMode ? 'border-yellow-500/35 bg-slate-900/90 shadow-lg' : 'border-yellow-100 bg-yellow-50/50';
+                  if (restriction === 'SRV') return isDarkMode ? 'border-indigo-500/35 bg-slate-900/90 shadow-lg' : 'border-indigo-100 bg-indigo-50/50';
+                  return isDarkMode ? 'border-emerald-500/35 bg-slate-900/90 shadow-lg' : 'border-emerald-100 bg-emerald-50/50';
+                };
 
-      {/* Info Footer */}
-      <div className={`px-6 py-4 border-t flex items-center gap-4 ${isDarkMode ? 'bg-slate-900/50 border-slate-800' : 'bg-blue-50 border-blue-100'}`}>
-         <Info size={16} className={isDarkMode ? 'text-indigo-400' : 'text-blue-500'} />
-         <p className={`text-[11px] font-medium leading-tight ${isDarkMode ? 'text-slate-400' : 'text-blue-700'}`}>
-           <span className="font-bold">Regras do Sistema:</span> Posições ocupadas (com voo ativo) não podem ter seu status alterado. Desabilitar uma posição no Aeródromo a remove das filas de prioridade e do grid de visualização operacional, mas mantém o histórico se houver.
-         </p>
-      </div>
+                const getRestrictionLabel = () => {
+                    if (isRemota) return 'CTA';
+                    if (restriction === 'HYBRID') return 'Híbrido';
+                    return restriction;
+                };
+
+                return (
+                  <div 
+                    key={posId} 
+                    className={`relative flex flex-col border-2 rounded transition-all h-36 ${getRestrictionColor()} ${hasFlight ? 'opacity-50 grayscale' : ''}`}
+                  >
+                      <div className="p-2 border-b border-inherit flex justify-between items-center">
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-1.5">
+                             <span className={`text-sm font-black font-mono ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{posId}</span>
+                             <button 
+                               onClick={() => toggleType(posId)}
+                               disabled={hasFlight}
+                               className={`text-[7px] font-black px-1.5 py-0.5 rounded transition-all hover:scale-110 active:scale-95 ${!isRemota ? 'bg-emerald-500 text-white' : 'bg-slate-500 text-white'}`}
+                             >
+                                {metadata?.type}
+                             </button>
+                          </div>
+                          {subPits.length > 0 && (
+                            <span className="text-[8px] font-mono text-amber-400/80 leading-tight mt-0.5">
+                              {subPits.map(p => p.pitId).slice(0, 2).join(', ')}{subPits.length > 2 ? ` +${subPits.length - 2}` : ''}
+                            </span>
+                          )}
+                        </div>
+                        {hasFlight ? (
+                          <AlertCircle size={10} className="text-amber-500" title="Ocupado" />
+                        ) : (
+                          <button 
+                            onClick={() => handleDeletePosition(posId)}
+                            className={`p-1 rounded-lg transition-colors ${isDarkMode ? 'text-slate-600 hover:text-red-500 hover:bg-red-500/10' : 'text-slate-300 hover:text-red-600 hover:bg-red-50'}`}
+                            title="Excluir posição"
+                          >
+                             <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex-1 flex flex-col justify-center gap-1 px-2">
+                        <button 
+                          onClick={() => toggleDisabled(posId)}
+                          className={`flex items-center justify-between w-full p-2 rounded-lg transition-all duration-200 ${isDisabled ? 'text-red-500 bg-red-500/20' : 'text-slate-500 hover:bg-slate-800 hover:text-slate-200'}`}
+                        >
+                            <Power size={14} strokeWidth={2.5} />
+                            <span className="text-[8px] font-black uppercase tracking-widest">{isDisabled ? 'OFF' : 'ATIVO'}</span>
+                        </button>
+
+                        <button 
+                          onClick={() => cycleRestriction(posId)}
+                          disabled={hasFlight || isRemota}
+                          className={`flex items-center justify-between w-full p-1 rounded transition-colors ${restriction !== 'HYBRID' ? 'text-yellow-500 bg-yellow-500/10' : 'text-slate-500 hover:bg-slate-800 hover:text-slate-200'} ${isRemota ? 'cursor-default opacity-50' : ''}`}
+                        >
+                            <BusFront size={12} strokeWidth={2.5} className={(restriction === 'SRV') ? 'text-indigo-400' : ''} />
+                            <span className={`text-[8px] font-black uppercase text-right ${(restriction === 'SRV') ? 'text-indigo-400' : ''}`}>{getRestrictionLabel()}</span>
+                        </button>
+                      </div>
+
+                      {/* Quick Indicator */}
+                      {!isDisabled && restriction === 'HYBRID' && (
+                        <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-emerald-500 border border-white dark:border-slate-900"></div>
+                      )}
+                      {!isDisabled && restriction === 'CTA' && (
+                        <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-yellow-500 border border-white dark:border-slate-900"></div>
+                      )}
+                      {!isDisabled && restriction === 'SRV' && (
+                        <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-indigo-500 border border-white dark:border-slate-900"></div>
+                      )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Info Footer */}
+          <div className={`px-6 py-4 border-t flex items-center gap-4 ${isDarkMode ? 'bg-slate-900/50 border-slate-800' : 'bg-blue-50 border-blue-100'}`}>
+             <Info size={16} className={isDarkMode ? 'text-indigo-400' : 'text-blue-500'} />
+             <p className={`text-[11px] font-medium leading-tight ${isDarkMode ? 'text-slate-400' : 'text-blue-700'}`}>
+               <span className="font-bold">Regras do Sistema:</span> Posições ocupadas (com voo ativo) não podem ter seu status alterado. Desabilitar uma posição no Aeródromo a remove das filas de prioridade e do grid de visualização operacional, mas mantém o histórico se houver.
+             </p>
+          </div>
+        </>
+      )}
 
       {/* Add Position Modal */}
       <AnimatePresence>

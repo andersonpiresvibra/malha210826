@@ -237,7 +237,7 @@ export interface MeshFlight {
   date?: string; // Add date field for time overrides
 }
 
-export type ViewState = 'GRID_OPS' | 'SHIFT_OPERATORS' | 'OPERATIONAL_MESH' | 'REPORTS' | 'FLEET' | 'OPERATORS_ADMIN' | 'MANAGEMENT' | 'FLEETS_ADMIN' | 'AIRCRAFTS_ADMIN' | 'AERODROMO' | 'AERODROMO_ADMIN' | 'AIRLINES_ADMIN' | 'AI_DASHBOARD' | 'FLIGHT_RADAR';
+export type ViewState = 'GRID_OPS' | 'SHIFT_OPERATORS' | 'OPERATIONAL_MESH' | 'REPORTS' | 'FLEET' | 'OPERATORS_ADMIN' | 'MANAGEMENT' | 'FLEETS_ADMIN' | 'AIRCRAFTS_ADMIN' | 'AERODROMO' | 'MAPA' | 'AERODROMO_ADMIN' | 'AIRLINES_ADMIN' | 'AI_DASHBOARD' | 'FLIGHT_RADAR';
 
 export interface AirlineType {
   id: string;
@@ -308,3 +308,23 @@ export interface DetailedVehicle {
   batteryLevel: number;
   observations?: string;
 }
+
+export type TransportMode = 'driving' | 'motorcycle' | 'bicycling' | 'walking' | 'transit';
+
+export interface LiveRouteCheckpoint {
+  street: string;
+  distanceText: string;
+  status: 'completed' | 'current' | 'upcoming';
+  timestamp?: string;
+}
+
+export interface RouteTrafficAlertItem {
+  id: string;
+  type: 'radar' | 'accident' | 'jam' | 'hazard' | 'clear';
+  title: string;
+  subtitle: string;
+  distanceMeters: number;
+  speedLimitKmh?: number;
+  source: 'waze' | 'osm_overpass' | 'telemetry';
+}
+

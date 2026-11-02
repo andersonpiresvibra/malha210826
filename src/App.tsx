@@ -19,6 +19,7 @@ import { FleetsAdmin } from './components/FleetsAdmin';
 import { AircraftsAdmin } from './components/AircraftsAdmin';
 import { AirlinesAdmin } from './components/AirlinesAdmin';
 import { Aerodromo } from './components/Aerodromo';
+import { AerodromoMapView } from './components/AerodromoMapView';
 import { OperatorManager } from './components/OperatorManager';
 import { AiDashboard } from './components/AiDashboard';
 import { FlightRadarView } from './components/FlightRadarView';
@@ -32,7 +33,7 @@ import { GoogleDriveModal } from './components/modals/GoogleDriveModal';
 const App: React.FC = () => {
   const { user, loading: authLoading, warName } = useAuth();
   const [view, setView] = useState<ViewState>(() => {
-    const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'AERODROMO_ADMIN', 'AIRLINES_ADMIN', 'AI_DASHBOARD', 'FLIGHT_RADAR'];
+    const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'MAPA', 'AERODROMO_ADMIN', 'AIRLINES_ADMIN', 'AI_DASHBOARD', 'FLIGHT_RADAR'];
     
     // Prioritize pathname suffix (e.g., "/REPORTS")
     const cleanPathname = window.location.pathname.replace(/^\/|\/$/g, '').trim().toUpperCase();
@@ -53,7 +54,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleUrlChange = () => {
-      const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'AERODROMO_ADMIN', 'AIRLINES_ADMIN', 'AI_DASHBOARD', 'FLIGHT_RADAR'];
+      const validViews: ViewState[] = ['GRID_OPS', 'SHIFT_OPERATORS', 'OPERATIONAL_MESH', 'REPORTS', 'FLEET', 'OPERATORS_ADMIN', 'MANAGEMENT', 'FLEETS_ADMIN', 'AIRCRAFTS_ADMIN', 'AERODROMO', 'MAPA', 'AERODROMO_ADMIN', 'AIRLINES_ADMIN', 'AI_DASHBOARD', 'FLIGHT_RADAR'];
       
       const cleanPathname = window.location.pathname.replace(/^\/|\/$/g, '').trim().toUpperCase();
       const pathnamePart = cleanPathname.split('/')[0] as ViewState;
@@ -1217,9 +1218,22 @@ const App: React.FC = () => {
                   <Aerodromo 
                     operators={globalOperators} 
                     flights={globalFlights} 
+                    vehicles={globalVehicles}
                     disabledPositions={disabledPositions}
                     positionsMetadata={positionsMetadata}
                     positionRestrictions={positionRestrictions}
+                    onSelectPitForFlight={(flightId, _positionId, pitId) => {
+                      handleManualFlightsUpdate(prev =>
+                        prev.map(f => {
+                          if (f.id !== flightId) return f;
+                          const updated = { ...f, pitId };
+                          import('./services/supabaseService').then(({ upsertFlight }) => {
+                            upsertFlight(updated).catch(() => {});
+                          });
+                          return updated;
+                        })
+                      );
+                    }}
                     onRemoveFlight={async (flightId) => {
                       if (!confirm("Deseja desvincular este voo da posição atual?")) return;
                       // Update Local Otimista
@@ -1227,9 +1241,34 @@ const App: React.FC = () => {
                       // Update Backend
                       import('./services/supabaseService').then(({ clearFlightPosition }) => {
                         clearFlightPosition(flightId).catch(err => {
-                           console.error("Falha ao desvincular voo:", err);
+                           console.warn("Falha ao desvincular voo:", err);
                         });
                       });
+                    }}
+                  />
+                )}
+                {view === 'MAPA' && (
+                  <AerodromoMapView
+                    isDarkMode={isDarkMode}
+                    flights={globalFlights}
+                    vehicles={globalVehicles}
+                    operators={globalOperators}
+                    disabledPositions={disabledPositions}
+                    positionsMetadata={positionsMetadata}
+                    positionRestrictions={positionRestrictions}
+                    standaloneMode={true}
+                    onSwitchToPositions={() => handleViewChange('AERODROMO')}
+                    onSelectPitForFlight={(flightId, _positionId, pitId) => {
+                      handleManualFlightsUpdate(prev =>
+                        prev.map(f => {
+                          if (f.id !== flightId) return f;
+                          const updated = { ...f, pitId };
+                          import('./services/supabaseService').then(({ upsertFlight }) => {
+                            upsertFlight(updated).catch(() => {});
+                          });
+                          return updated;
+                        })
+                      );
                     }}
                   />
                 )}
@@ -1244,6 +1283,8 @@ const App: React.FC = () => {
                     positionRestrictions={positionRestrictions}
                     setPositionRestrictions={setPositionRestrictions}
                     flights={globalFlights}
+                    operators={globalOperators}
+                    vehicles={globalVehicles}
                     onClearAllAssignments={clearAllPositionAssignments}
                   />
                 )}

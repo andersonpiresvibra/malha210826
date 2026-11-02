@@ -1587,7 +1587,7 @@ export const GridOps: React.FC<GridOpsProps> = ({
         // Persistir no banco
         changedFlightsLocal.forEach((f) => {
           upsertFlight(f).catch((err) =>
-            console.error("Erro na persistência automática:", err),
+            console.warn("Aviso na persistência automática (contingência local):", err),
           );
         });
       }

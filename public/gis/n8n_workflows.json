@@ -1,0 +1,52 @@
+{
+  "name": "MALHA_SBGR_RTLS_ADSB_AUTOMATIONS",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Webhook Alerta Geofence (Pista / Pátio)",
+      "type": "n8n-nodes-base.webhook",
+      "parameters": {
+        "path": "alerta-geofence",
+        "httpMethod": "POST"
+      }
+    },
+    {
+      "id": "2",
+      "name": "Cron Heartbeat Veículo Offline (> 5 min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "3",
+      "name": "Query PostGIS Veículos Sem Heartbeat",
+      "type": "n8n-nodes-base.postgres",
+      "parameters": {
+        "query": "SELECT callsign, tipo, last_seen_at FROM public.vehicles WHERE status = 'ONLINE' AND last_seen_at < now() - interval '5 minutes';"
+      }
+    },
+    {
+      "id": "4",
+      "name": "Relatório Diário NOC (Movimentação por Pátio)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
